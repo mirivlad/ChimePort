@@ -1,0 +1,15 @@
+# Documentation-first repository
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+secrets.yaml
+*.keystore
+*.jks
