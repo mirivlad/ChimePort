@@ -219,6 +219,9 @@ func within(parent, candidate string) bool {
 	if resolved, err := filepath.EvalSymlinks(a); err == nil {
 		a = resolved
 	}
+	if resolved, err := filepath.EvalSymlinks(filepath.Dir(b)); err == nil {
+		b = filepath.Join(resolved, filepath.Base(b))
+	}
 	rel, err := filepath.Rel(a, b)
 	return err != nil || rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
