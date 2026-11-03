@@ -99,10 +99,22 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                 mutable.update { it.copy(busy = false, addingServer = false, probed = null,
                     loginError = null, tab = Tab.INBOX, syncError = null) }
             }.onFailure { e ->
-                // Account may be saved even if initial sync failed; preserve it for offline use.
+                // Bad credentials must keep the login form open. A successful login with a
+                // later sync error keeps the account and its local history instead.
                 reload()
-                mutable.update { it.copy(busy = false, addingServer = false,
-                    message = "Подключение сохранено. " + describe(e), tab = Tab.SERVERS) }
+                val saved = cache.servers().any {
+                    it.origin == origin && it.instanceId == instance.id &&
+                        it.username == username.trim()
+                }
+                mutable.update {
+                    it.copy(
+                        busy = false,
+                        addingServer = !saved,
+                        loginError = if (saved) null else describe(e),
+                        message = if (saved) "Сервер подключён, но синхронизация не завершилась: " + describe(e) else null,
+                        tab = if (saved) Tab.SERVERS else it.tab
+                    )
+                }
             }
         }
     }
