@@ -9,7 +9,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -158,7 +160,7 @@ fun SectionTitle(text: String, description: String? = null) {
 }
 
 
-/** Left swipe: mark unread as read. Right swipe: restore a read notification. */
+/** The same message can be marked read and unread repeatedly. */
 @Composable
 fun SwipeNoticeCard(
     message: Notice,
@@ -167,46 +169,58 @@ fun SwipeNoticeCard(
     onChangeRead: (Boolean) -> Unit
 ) {
     val isRead = message.readAt != null
-    val swipeState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.EndToStart -> if (!isRead) onChangeRead(true)
-                SwipeToDismissBoxValue.StartToEnd -> if (isRead) onChangeRead(false)
-                SwipeToDismissBoxValue.Settled -> Unit
-            }
-            false // The server decides when the local read state changes.
-        },
-        positionalThreshold = { distance -> distance * 0.30f }
-    )
-    SwipeToDismissBox(
-        state = swipeState,
-        enableDismissFromStartToEnd = isRead,
-        enableDismissFromEndToStart = !isRead,
-        backgroundContent = {
-            Box(
-                Modifier.fillMaxSize()
-                    .background(
-                        if (isRead) MaterialTheme.colorScheme.secondaryContainer
-                        else MaterialTheme.colorScheme.primaryContainer,
-                        RoundedCornerShape(18.dp)
-                    )
-                    .padding(horizontal = 22.dp),
-                contentAlignment = if (isRead) Alignment.CenterStart else Alignment.CenterEnd
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+    // SwipeToDismissBox remembers the first confirm callback for its saved state.
+    // Always use the newest message status and action after changing tabs.
+    val currentRead by rememberUpdatedState(isRead)
+    val currentChangeRead by rememberUpdatedState(onChangeRead)
+    val currentOpen by rememberUpdatedState(onOpen)
+
+    // A new gesture state after each status change also clears any old swipe offset.
+    key(message.key, isRead) {
+        val swipeState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { direction ->
+                val swipe = when (direction) {
+                    SwipeToDismissBoxValue.EndToStart -> ReadSwipeDirection.LEFT
+                    SwipeToDismissBoxValue.StartToEnd -> ReadSwipeDirection.RIGHT
+                    SwipeToDismissBoxValue.Settled -> null
+                }
+                swipe?.let { readStateAfterSwipe(currentRead, it) }?.let(currentChangeRead)
+                false // Keep the card in place until the API has persisted the new state.
+            },
+            positionalThreshold = { distance -> distance * 0.30f }
+        )
+        SwipeToDismissBox(
+            state = swipeState,
+            enableDismissFromStartToEnd = isRead,
+            enableDismissFromEndToStart = !isRead,
+            backgroundContent = {
+                Box(
+                    Modifier.fillMaxSize()
+                        .background(
+                            if (isRead) MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.primaryContainer,
+                            RoundedCornerShape(18.dp)
+                        )
+                        .padding(horizontal = 22.dp),
+                    contentAlignment = if (isRead) Alignment.CenterStart else Alignment.CenterEnd
                 ) {
-                    Icon(
-                        if (isRead) Icons.Outlined.MarkEmailUnread else Icons.Outlined.DoneAll,
-                        contentDescription = null
-                    )
-                    Text(if (isRead) "В непрочитанные" else "Прочитано",
-                        style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            if (isRead) Icons.Outlined.MarkEmailUnread else Icons.Outlined.DoneAll,
+                            contentDescription = null
+                        )
+                        Text(
+                            if (isRead) "В непрочитанные" else "Прочитано",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             }
+        ) {
+            NoticeCard(message, currentOpen, showServer)
         }
-    ) {
-        NoticeCard(message, onOpen, showServer)
     }
 }
