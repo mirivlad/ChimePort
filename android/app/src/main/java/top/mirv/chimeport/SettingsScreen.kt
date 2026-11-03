@@ -25,9 +25,16 @@ import top.mirv.chimeport.data.ThemeChoice
 @Composable
 fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = Modifier) {
     var alertDetails by remember { mutableStateOf(false) }
-    BackHandler(enabled = alertDetails) { alertDetails = false }
+    var quietDetails by remember { mutableStateOf(false) }
+    BackHandler(enabled = alertDetails || quietDetails) {
+        if (quietDetails) quietDetails = false else alertDetails = false
+    }
     if (alertDetails) {
         AlertSettingsScreen(state, model, onBack = { alertDetails = false }, modifier = modifier)
+        return
+    }
+    if (quietDetails) {
+        QuietHoursScreen(state, model, onBack = { quietDetails = false }, modifier = modifier)
         return
     }
     Column(
@@ -114,6 +121,32 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
         }
         Spacer(Modifier.height(15.dp))
         ElevatedCard(
+            onClick = { quietDetails = true },
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Bedtime, null,
+                    tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Тихие часы", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Ежедневное расписание для приложения, серверов и каналов",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(Icons.Outlined.ChevronRight, "Настроить")
+            }
+        }
+        Spacer(Modifier.height(15.dp))
+        ElevatedCard(
             onClick = { alertDetails = true },
             colors = CardDefaults.elevatedCardColors(
                 containerColor = MaterialTheme.colorScheme.surface),
@@ -153,7 +186,7 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                     Text("Об этом приложении", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold)
                 }
-                Text("ChimePort · Android alpha 0.5.1",
+                Text("ChimePort · Android alpha 0.6.0",
                     style = MaterialTheme.typography.bodyMedium)
                 Text(
                     "Все серверы независимы, сообщения хранятся у владельца сервера, " +

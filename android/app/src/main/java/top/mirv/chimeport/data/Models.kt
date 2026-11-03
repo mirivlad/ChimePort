@@ -73,5 +73,6 @@ data class AppState(
     val backgroundLive: Boolean = false,
     val liveStatuses: Map<String, LiveStatus> = emptyMap(),
     val alertSettingsRevision: Int = 0,
+    val quietSettingsRevision: Int = 0,
     val openNotificationKey: String? = null
 )

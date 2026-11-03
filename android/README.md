@@ -70,3 +70,29 @@ The two original ChimePort notification tones were synthesized for the applicati
 ## Alpha 11 — Android system ringtone picker
 
 The per-channel sound settings now include **Из звуков телефона**, launching Android's native notification ringtone picker (`RingtoneManager.ACTION_RINGTONE_PICKER`, `TYPE_NOTIFICATION`). Choosing a system or installed notification tone stores its URI and display title per ChimePort channel, without requesting broad access to the phone's music library. The chosen URI becomes the sound for the next revision of that channel's Android `NotificationChannel`, because Android does not allow changing an existing channel's sound. The system can still override per-channel sound and Do Not Disturb applies. The original ChimePort sounds remain available. This does not yet provide a separate file-browser picker for arbitrary music files.
+
+## Alpha 12: daily quiet hours (Android-only)
+
+Settings → Тихие часы defines a device-local daily window with start and end time
+in 24-hour format. Configuration is hierarchical: global → per-server → per-channel.
+Servers and channels default to INHERIT; they can explicitly turn the schedule OFF
+even when their parent has one, or set an independent daily schedule. The default
+global setting is OFF. Overnight spans such as 22:00–07:00 work across midnight; equal
+start and end means an all-day quiet window. Times follow the phone's current local
+time zone; no permanent background timer or extra alarm permission is used.
+
+During quiet hours NEW notifications still appear in Android's shade and
+ChimePort's inbox, but they use an existing dedicated silent notification lane
+without sound or vibration. At the end of a quiet window, subsequent notifications
+use their normal priority/sound/vibration profile. No queued alerts are replayed
+with sound. Optionally allow urgent priority to use its normal configured
+sound and vibration during a quiet interval; this does not override Android's
+Do Not Disturb or an explicitly SILENT/QUIET channel profile. High and all
+other priorities are quiet during the window.
+
+The persistent foreground-service connection indicator remains visible and silent.
+In-app schedules and user-selected sounds cannot bypass Android notification
+permissions or Do Not Disturb. These preferences are local to this phone (not
+synchronized to the ChimePort server) and are erased for an account if the account
+is removed. No server update is necessary. The APK's signing certificate remains pinned
+and checked before release.
