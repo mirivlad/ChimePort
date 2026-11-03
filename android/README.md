@@ -24,3 +24,9 @@ Foreground SSE listeners keep the feed up to date while the app is open. Newly r
 ## Live event transport
 
 The app opens an authenticated SSE connection per connected server while in the foreground. When the server sends `messages_available`, the client synchronizes history through the existing cursor-based REST API, not through the SSE payload. A reconnect triggers a silent catch-up. Connections close when the application is stopped; transient failures retry with an exponential backoff up to 30 seconds. Connection status is visible in the header and server cards. New *live* events can produce Android system notifications after notification permission is granted; initial history and reconnected backlog stay silent.
+
+## Android background and alpha signature
+
+The app offers opt-in background monitoring using a visible ongoing foreground-service notification (Android specialUse type). The service keeps authenticated SSE subscriptions and synchronizes to SQLite. Swipe-away may continue receiving notifications on some devices, but force-stop, battery-saving restrictions, connectivity and OS process management can interrupt it; this is not guaranteed urgent alert delivery.
+
+For alpha builds the GitHub workflow now caches one debug signing identity, so future runs should install over each other **while GitHub's signing cache survives**. This first build necessarily uses a new identity versus alpha 4: one more uninstall may be needed. GitHub cache eviction can still invalidate the signature. Before shipping a stable release, store a dedicated private signing key in encrypted GitHub Secrets and verify certificate continuity; do not rely on the cache or publish a private keystore in the repository.

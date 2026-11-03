@@ -185,6 +185,9 @@ private fun ChimeTopBar(state: AppState, model: ChimeViewModel) {
                 }
                 val liveLabel = when {
                     state.servers.isEmpty() -> "Свои сигналы. Свой сервер."
+                    state.backgroundLive && BackgroundLiveService.running ->
+                        "Фоновая доставка включена"
+                    state.backgroundLive -> "Запуск фонового подключения…"
                     connected == state.servers.size -> "На связи · обновления автоматически"
                     state.liveStatuses.values.any { it == LiveStatus.LOGIN_REQUIRED } ->
                         "Требуется повторный вход"
