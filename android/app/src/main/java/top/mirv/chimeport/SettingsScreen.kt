@@ -6,6 +6,9 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -21,7 +24,16 @@ import top.mirv.chimeport.data.ThemeChoice
 
 @Composable
 fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 24.dp)) {
+    var alertDetails by remember { mutableStateOf(false) }
+    BackHandler(enabled = alertDetails) { alertDetails = false }
+    if (alertDetails) {
+        AlertSettingsScreen(state, model, onBack = { alertDetails = false }, modifier = modifier)
+        return
+    }
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 24.dp)
+    ) {
         PageTitle("Настройки", "Как выглядит и работает ChimePort")
         Spacer(Modifier.height(24.dp))
         ElevatedCard(
@@ -102,6 +114,29 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
         }
         Spacer(Modifier.height(15.dp))
         ElevatedCard(
+            onClick = { alertDetails = true },
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.NotificationsActive, null,
+                    tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Звуки и каналы", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Выбрать звук, вибрацию и важность для каждого канала",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, "Настроить")
+            }
+        }
+        Spacer(Modifier.height(15.dp))
+        ElevatedCard(
             colors = CardDefaults.elevatedCardColors(
                 containerColor = MaterialTheme.colorScheme.surface
             ),
@@ -118,7 +153,7 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                     Text("Об этом приложении", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold)
                 }
-                Text("ChimePort · Android alpha 0.4.1",
+                Text("ChimePort · Android alpha 0.5.0",
                     style = MaterialTheme.typography.bodyMedium)
                 Text(
                     "Все серверы независимы, сообщения хранятся у владельца сервера, " +

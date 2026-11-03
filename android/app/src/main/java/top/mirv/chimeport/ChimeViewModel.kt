@@ -153,7 +153,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                         val added = ServerSync.refresh(cache, id)
                         reload()
                         mutable.update { it.copy(syncError = null) }
-                        added.firstOrNull { it.id == lastId }?.let { notice ->
+                        added.filter { it.readAt == null }.take(12).forEach { notice ->
                             LiveNotifications.show(getApplication(), notice)
                         }
                     }
@@ -176,6 +176,36 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openTab(tab: Tab) { mutable.update { it.copy(tab = tab) } }
+
+    /** System notification clicks contain only a local connection ID and message ID. */
+    fun openNotification(serverId: String, messageId: String) {
+        if (cache.servers().none { it.id == serverId }) {
+            mutable.update { it.copy(message = "Подключение для этого уведомления уже удалено.") }
+            return
+        }
+        val key = serverId + ":" + messageId
+        val alreadyCached = mutable.value.messages.any { it.key == key }
+        mutable.update {
+            it.copy(
+                openNotificationKey = key, tab = Tab.INBOX,
+                inboxMode = InboxMode.ALL, selectedServer = serverId, selectedChannel = null
+            )
+        }
+        if (!alreadyCached) refresh()
+    }
+
+    fun closeNotification() {
+        mutable.update { it.copy(openNotificationKey = null) }
+    }
+
+    fun configureAlert(channel: ChannelInfo, profile: AlertProfile) {
+        try {
+            AlertProfiles.save(getApplication(), channel.serverId, channel.slug, profile)
+            mutable.update { it.copy(alertSettingsRevision = it.alertSettingsRevision + 1) }
+        } catch (error: Exception) {
+            mutable.update { it.copy(message = "Не удалось сохранить оповещения: " + describe(error)) }
+        }
+    }
     fun selectInbox(mode: InboxMode) {
         mutable.update { it.copy(
             tab = Tab.INBOX, inboxMode = mode,
@@ -323,6 +353,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 reload()
+                if (shouldRead) LiveNotifications.dismiss(getApplication(), notice)
                 ChangeBus.emit()
             } catch (error: Exception) {
                 mutable.update { it.copy(message =
@@ -341,7 +372,10 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
     fun removeServer(id: String) {
         val account = cache.servers().firstOrNull { it.id == id }
         // Local removal always works offline; remote logout is a best-effort cleanup.
+        val slugs = cache.channels().filter { it.serverId == id }.map { it.slug }
         cache.deleteAccount(id)
+        AlertProfiles.forgetServer(getApplication(), id, slugs)
+        LiveNotifications.forgetServer(getApplication(), id)
         reload()
         ChangeBus.emit()
         reconcileRealtime()
