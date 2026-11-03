@@ -20,6 +20,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import top.mirv.chimeport.data.ApiError
 import top.mirv.chimeport.data.Cache
 import top.mirv.chimeport.data.EventStream
@@ -68,7 +70,13 @@ class BackgroundLiveService : Service() {
     private val cache by lazy { Cache(this) }
     private val streams = EventStream()
     private val jobs = mutableMapOf<String, Job>()
+    private val rejectedSessions = ConcurrentHashMap<String, String>()
     private var manager: Job? = null
+
+    private fun sessionFingerprint(token: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(token.toByteArray(Charsets.UTF_8))
+            .take(12).joinToString("") { "%02x".format(it.toInt() and 255) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -105,20 +113,25 @@ class BackgroundLiveService : Service() {
         ConnectionDiagnostics.serviceStarted(this)
         if (intent?.action == ACTION_RECONNECT) {
             // User explicitly requested reconnection; closing the socket wakes listeners.
+            rejectedSessions.clear()
             streams.disconnectAll()
         }
         if (manager?.isActive != true) {
             manager = scope.launch {
                 while (isActive && enabled(this@BackgroundLiveService)) {
-                    val accounts = cache.servers().map { it.id }
-                    val ids = accounts.toSet()
+                    val accounts = cache.servers()
+                    val ids = accounts.map { it.id }.toSet()
                     jobs.keys.toList().filter { it !in ids }.forEach { id ->
                         jobs.remove(id)?.cancel()
+                        rejectedSessions.remove(id)
                         streams.disconnect(id)
                     }
-                    for (id in accounts) {
-                        if (jobs[id]?.isActive != true) {
-                            jobs[id] = launch { observe(id) }
+                    for (account in accounts) {
+                        val fingerprint = sessionFingerprint(account.token)
+                        if (rejectedSessions[account.id] == fingerprint) continue
+                        rejectedSessions.remove(account.id)
+                        if (jobs[account.id]?.isActive != true) {
+                            jobs[account.id] = launch { observe(account.id) }
                         }
                     }
                     delay(5000L)
@@ -162,6 +175,7 @@ class BackgroundLiveService : Service() {
                 throw stop
             } catch (unauthorized: ApiError) {
                 if (unauthorized.code == 401 || unauthorized.code == 403) {
+                    rejectedSessions[id] = sessionFingerprint(server.token)
                     ConnectionDiagnostics.loginRequired(this, id)
                     break
                 }
