@@ -36,6 +36,8 @@ object AlertProfiles {
         return AlertProfile(
             sound = sound, level = level,
             vibrate = shared.getBoolean(prefix + "vibrate", false),
+            ringtoneUri = shared.getString(prefix + "ringtoneUri", null) ?: "",
+            ringtoneTitle = shared.getString(prefix + "ringtoneTitle", null) ?: "",
             revision = shared.getInt(prefix + "revision", 0)
         )
     }
@@ -50,6 +52,8 @@ object AlertProfiles {
             .putString(prefix + "sound", updated.sound.name)
             .putString(prefix + "level", updated.level.name)
             .putBoolean(prefix + "vibrate", updated.vibrate)
+            .putString(prefix + "ringtoneUri", updated.ringtoneUri)
+            .putString(prefix + "ringtoneTitle", updated.ringtoneTitle)
             .putInt(prefix + "revision", updated.revision)
             .commit()) { "Не удалось сохранить настройки уведомлений" }
         return updated
@@ -59,7 +63,7 @@ object AlertProfiles {
         val editor = store(context).edit()
         for (slug in slugs) {
             val prefix = prefix(serverId, slug)
-            for (suffix in listOf("sound", "level", "vibrate", "revision")) {
+            for (suffix in listOf("sound", "level", "vibrate", "ringtoneUri", "ringtoneTitle", "revision")) {
                 editor.remove(prefix + suffix)
             }
         }
