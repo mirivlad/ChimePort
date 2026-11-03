@@ -24,6 +24,7 @@ jobs:
           files="$(gofmt -l .)"
           if [ -n "$files" ]; then
             printf "Files requiring gofmt:\\n%s\\n" "$files"
+            gofmt -d .
             exit 1
           fi
       - name: Check web JavaScript syntax
