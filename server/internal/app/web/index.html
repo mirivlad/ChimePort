@@ -11,7 +11,7 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark" aria-hidden="true">C</span><span>ChimePort <small>Личный центр уведомлений</small></span></div>
-    <div class="account"><span class="server-address">Мой сервер</span><span id="identity"></span><button id="logout" type="button" class="quiet" hidden>Выйти</button></div>
+    <div class="account"><a class="examples-link" href="/examples">Примеры отправки</a><span id="identity"></span><button id="logout" type="button" class="quiet" hidden>Выйти</button></div>
   </header>
   <main class="layout">
     <section id="login-panel" class="panel login-card">
@@ -98,7 +98,7 @@
         <div id="permissions-channel-list" class="check-list"></div>
         <p id="permissions-error" class="field-error" hidden>Выберите хотя бы один канал.</p>
       </fieldset>
-      <div class="form-actions"><button type="button" id="cancel-permissions" class="secondary">Отмена</button><button type="submit" id="save-permissions">Сохранить права</button></div>
+      <div class="form-actions"><button type="button" id="revoke-permissions" class="danger-button">Отозвать токен</button><button type="button" id="cancel-permissions" class="secondary">Отмена</button><button type="submit" id="save-permissions">Сохранить права</button></div>
     </form>
   </dialog>
   <dialog id="secret-dialog" class="modal">

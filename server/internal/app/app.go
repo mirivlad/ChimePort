@@ -103,7 +103,7 @@ func (a *App) Handler() http.Handler {
 	})
 }
 func (a *App) web(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" {
+	if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" && r.URL.Path != "/examples" && r.URL.Path != "/examples.js" {
 		http.NotFound(w, r)
 		return
 	}
@@ -116,6 +116,13 @@ func (a *App) web(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/style.css" {
 		path = "web/style.css"
 		mime = "text/css; charset=utf-8"
+	}
+	if r.URL.Path == "/examples" {
+		path = "web/examples.html"
+	}
+	if r.URL.Path == "/examples.js" {
+		path = "web/examples.js"
+		mime = "text/javascript; charset=utf-8"
 	}
 	content, err := webAssets.ReadFile(path)
 	if err != nil {

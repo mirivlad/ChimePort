@@ -543,6 +543,13 @@ func (a *App) publish(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
+	if channelFromURL := r.URL.Query().Get("channel"); channelFromURL != "" {
+		if in.Channel != "" && in.Channel != channelFromURL {
+			failure(w, 400, "channel_mismatch", "Channel in URL and JSON body must match")
+			return
+		}
+		in.Channel = channelFromURL
+	}
 	if in.Priority == "" {
 		in.Priority = "normal"
 	}
