@@ -1,10 +1,12 @@
 # Portainer Git stack: refs/heads/main, deploy/compose.portainer.yaml
-# The official experiment image is published from main by GitHub Actions.
+# The GHCR publisher also produces immutable sha-<full commit> image tags.
+# To restore safely, mount an EMPTY restored host directory by setting CHIMEPORT_DATA_MOUNT.
+# The original named volume remains untouched for rollback.
 # For a reverse proxy running on the host, forward to 127.0.0.1:8080.
 # For a proxy in Docker, add a shared external Docker network.
 services:
   chimeport:
-    image: ghcr.io/mirivlad/chimeport:main
+    image: ${CHIMEPORT_IMAGE:-ghcr.io/mirivlad/chimeport:main}
     restart: unless-stopped
     environment:
       CHIMEPORT_DATA_DIR: /data
@@ -13,7 +15,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - chimeport_data:/data
+      - ${CHIMEPORT_DATA_MOUNT:-chimeport_data}:/data
     healthcheck:
       test: ["CMD", "/usr/local/bin/chimeport", "healthcheck"]
       interval: 30s

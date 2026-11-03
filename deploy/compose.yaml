@@ -10,7 +10,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - chimeport_data:/data
+      - ${CHIMEPORT_DATA_MOUNT:-chimeport_data}:/data
     healthcheck:
       test: ["CMD", "/usr/local/bin/chimeport", "healthcheck"]
       interval: 30s
