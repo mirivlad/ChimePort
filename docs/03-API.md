@@ -88,7 +88,8 @@ Location: /api/v1/messages/01J...
 | `GET /sources` | пользователь | Источники владельца |
 | `POST /sources` | пользователь | Создать именованный источник |
 | `POST /sources/{id}/tokens` | владелец | Создать ограниченный токен |
-| `GET /sources/{id}/tokens` | владелец | Метаданные и префикс (без полного секрета) |
+| `GET /sources/{id}/tokens` | владелец | Метаданные, префикс и `allowed_channels` (без секрета) |
+| `PATCH /sources/{id}/tokens/{token_id}` | владелец | Атомарно заменить разрешённые каналы без смены токена; тело `{"channel_ids":[1,2]}`; от 1 до 100 уникальных собственных каналов. Отозванный/чужой токен: 404 |
 | `GET /sources/{id}/tokens/{token_id}/secret` | владелец | Повторно получить полный токен по явному действию, `Cache-Control: no-store` |
 | `DELETE /sources/{id}/tokens/{token_id}` | владелец | Отозвать токен |
 | `POST /messages` | source token | Опубликовать сообщение |

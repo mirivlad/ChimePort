@@ -88,6 +88,19 @@
       <div class="form-actions"><button type="button" id="cancel-token" class="secondary">Отмена</button><button type="submit" id="save-token">Создать токен</button></div>
     </form>
   </dialog>
+  <dialog id="permissions-dialog" class="modal">
+    <form id="permissions-form" class="form-stack">
+      <div class="section-heading"><div><div class="eyebrow">ДЕЙСТВУЮЩИЙ ТОКЕН</div><h2 id="permissions-heading">Права токена</h2></div><button type="button" id="close-permissions" class="quiet" aria-label="Закрыть окно">✕</button></div>
+      <p id="permissions-source" class="hint"></p>
+      <p class="hint">Выберите каналы, куда этот токен сможет отправлять уведомления. Сам токен не изменится, и в приложениях его заменять не нужно.</p>
+      <fieldset class="channel-select"><legend>Разрешённые каналы <span class="required">*</span></legend>
+        <div class="picker-bar"><span class="hint">Нужен хотя бы один канал</span><button type="button" id="toggle-all-permissions" class="text-button">Выбрать все</button></div>
+        <div id="permissions-channel-list" class="check-list"></div>
+        <p id="permissions-error" class="field-error" hidden>Выберите хотя бы один канал.</p>
+      </fieldset>
+      <div class="form-actions"><button type="button" id="cancel-permissions" class="secondary">Отмена</button><button type="submit" id="save-permissions">Сохранить права</button></div>
+    </form>
+  </dialog>
   <dialog id="secret-dialog" class="modal">
     <div class="section-heading"><h2 id="secret-title">Токен создан</h2><button type="button" id="close-secret" class="quiet" aria-label="Закрыть окно">✕</button></div>
     <p class="hint">Токен можно снова посмотреть и скопировать позже. Не публикуйте его в открытых репозиториях.</p>

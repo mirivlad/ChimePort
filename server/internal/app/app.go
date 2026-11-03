@@ -83,6 +83,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/sources", a.createSource)
 	mux.HandleFunc("GET /api/v1/sources/{id}/tokens", a.listTokens)
 	mux.HandleFunc("POST /api/v1/sources/{id}/tokens", a.createToken)
+	mux.HandleFunc("PATCH /api/v1/sources/{id}/tokens/{token_id}", a.updateTokenPermissions)
 	mux.HandleFunc("GET /api/v1/sources/{id}/tokens/{token_id}/secret", a.viewToken)
 	mux.HandleFunc("DELETE /api/v1/sources/{id}/tokens/{token_id}", a.revokeToken)
 	mux.HandleFunc("POST /api/v1/messages", a.publish)

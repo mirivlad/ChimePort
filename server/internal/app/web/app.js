@@ -1,7 +1,7 @@
 'use strict';
 
 // All text returned by the API is rendered with textContent, never innerHTML.
-const state = { me: null, channels: [], sources: [], messages: [], cursor: '', hasMore: false, stream: null, tokenSource: null };
+const state = { me: null, channels: [], sources: [], messages: [], cursor: '', hasMore: false, stream: null, tokenSource: null, editingToken: null };
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => {
   const node = document.createElement(tag);
@@ -177,6 +177,7 @@ async function showTokens(src, force = false) {
       row.append(info);
       if (!token.revoked_at) {
         const actions = el('div', undefined, 'actions');
+        actions.append(button('Изменить права', () => openPermissionsDialog(src, token)));
         let secretVisible = false;
         const value = el('code', '••••••••••••', 'token-secret');
         value.hidden = true;
@@ -201,6 +202,53 @@ async function showTokens(src, force = false) {
     }
   } catch (err) { host.replaceChildren(el('p', 'Не удалось загрузить токены: ' + err.message, 'field-error')); notice(err.message, true); }
 }
+function openPermissionsDialog(src, token) {
+  const allowed = new Set(Array.isArray(token.allowed_channels) ? token.allowed_channels : []);
+  state.editingToken = { src, token };
+  $('permissions-heading').textContent = `Права · ${token.label}`;
+  $('permissions-source').textContent = `Источник: ${src.name}`;
+  const picker = $('permissions-channel-list');
+  picker.replaceChildren();
+  for (const channel of state.channels) {
+    const label = el('label', undefined, 'channel-option');
+    const check = el('input');
+    check.type = 'checkbox';
+    check.value = String(channel.id);
+    check.name = 'permission';
+    check.checked = allowed.has(channel.slug);
+    const caption = el('span');
+    caption.append(el('strong', channel.name), el('small', channel.slug));
+    label.append(check, caption);
+    picker.append(label);
+  }
+  updatePermissionsButton();
+  $('permissions-dialog').showModal();
+}
+function updatePermissionsButton() {
+  const nodes = [...$('permissions-channel-list').querySelectorAll('input[type=checkbox]')];
+  const allChecked = nodes.length > 0 && nodes.every((node) => node.checked);
+  $('toggle-all-permissions').textContent = allChecked ? 'Снять все' : 'Выбрать все';
+  $('permissions-error').hidden = nodes.some((node) => node.checked);
+}
+async function savePermissions(event) {
+  event.preventDefault();
+  const selection = state.editingToken;
+  if (!selection) return;
+  const channel_ids = [...$('permissions-channel-list').querySelectorAll('input:checked')].map((node) => Number(node.value));
+  if (!channel_ids.length) { $('permissions-error').hidden = false; return; }
+  const save = $('save-permissions');
+  save.disabled = true;
+  try {
+    await api(`/sources/${selection.src.id}/tokens/${selection.token.id}`, {
+      method: 'PATCH', body: JSON.stringify({ channel_ids })
+    });
+    $('permissions-dialog').close();
+    await showTokens(selection.src, true);
+    notice('Права токена обновлены. Перевыпускать токен не нужно.');
+  } catch (err) { notice('Не удалось изменить права: ' + err.message, true); }
+  finally { save.disabled = false; }
+}
+
 function openTokenDialog(src) {
   if (!state.channels.length) {
     showTab('channels'); openForm('channel');
@@ -381,6 +429,17 @@ $('user-form').addEventListener('submit', async (event) => {
   catch (err) { notice('Не удалось создать пользователя: ' + err.message, true); }
 });
 $('token-form').addEventListener('submit', createToken);
+$('permissions-form').addEventListener('submit', savePermissions);
+$('permissions-channel-list').addEventListener('change', updatePermissionsButton);
+$('toggle-all-permissions').addEventListener('click', () => {
+  const nodes = [...$('permissions-channel-list').querySelectorAll('input[type=checkbox]')];
+  const selectAll = !nodes.every((node) => node.checked);
+  nodes.forEach((node) => { node.checked = selectAll; });
+  updatePermissionsButton();
+});
+$('cancel-permissions').addEventListener('click', () => $('permissions-dialog').close());
+$('close-permissions').addEventListener('click', () => $('permissions-dialog').close());
+$('permissions-dialog').addEventListener('close', () => { state.editingToken = null; });
 $('toggle-all-channels').addEventListener('click', () => {
   const nodes = [...$('token-channel-list').querySelectorAll('input[type=checkbox]')];
   const selectAll = !nodes.every((node) => node.checked);
