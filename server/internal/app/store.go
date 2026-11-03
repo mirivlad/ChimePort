@@ -28,6 +28,11 @@ func OpenStore(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("data dir: %w", err)
 	}
+	if _, err := os.Stat(filepath.Join(dir, ".restore-in-progress")); err == nil {
+		return nil, errors.New("restore is incomplete: do not start on a half-restored volume; restore to a new EMPTY directory")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("check restore state: %w", err)
+	}
 	db, err := sql.Open("sqlite", filepath.Join(dir, "chimeport.db"))
 	if err != nil {
 		return nil, err

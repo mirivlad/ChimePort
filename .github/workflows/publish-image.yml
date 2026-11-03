@@ -35,7 +35,9 @@ jobs:
           file: ./server/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/mirivlad/chimeport:main
+          tags: |
+            ghcr.io/mirivlad/chimeport:main
+            ghcr.io/mirivlad/chimeport:sha-${{ github.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/mirivlad/ChimePort
             org.opencontainers.image.description=ChimePort self-hosted notification server (experimental)

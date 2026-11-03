@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mirivlad/ChimePort/server/internal/app"
+	"github.com/mirivlad/ChimePort/server/internal/maintenance"
 )
 
 func main() {
@@ -23,6 +24,54 @@ func main() {
 		command = os.Args[1]
 	}
 	switch command {
+	case "maintenance":
+		if len(os.Args) < 3 {
+			log.Fatal("usage: chimeport maintenance [backup|verify|restore] [flags]")
+		}
+		switch os.Args[2] {
+		case "backup":
+			f := flag.NewFlagSet("maintenance backup", flag.ExitOnError)
+			output := f.String("output", "", "New backup archive path, outside /data")
+			directory := f.String("data-dir", dataDir, "Source SQLite volume")
+			_ = f.Parse(os.Args[3:])
+			if *output == "" || f.NArg() != 0 {
+				log.Fatal("usage: chimeport maintenance backup --output /backups/name.tar.gz [--data-dir /data]")
+			}
+			manifest, err := maintenance.Backup(*directory, *output)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Backup verified: %s (instance=%s schema=%d)\n", *output, manifest.InstanceID, manifest.SchemaVersion)
+		case "verify":
+			f := flag.NewFlagSet("maintenance verify", flag.ExitOnError)
+			archive := f.String("archive", "", "Backup archive path")
+			_ = f.Parse(os.Args[3:])
+			if *archive == "" || f.NArg() != 0 {
+				log.Fatal("usage: chimeport maintenance verify --archive /backups/name.tar.gz")
+			}
+			manifest, err := maintenance.Verify(*archive)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Backup valid: instance=%s schema=%d created=%s image=%s\n",
+				manifest.InstanceID, manifest.SchemaVersion, manifest.CreatedAt, manifest.ImageRef)
+		case "restore":
+			f := flag.NewFlagSet("maintenance restore", flag.ExitOnError)
+			archive := f.String("archive", "", "Backup archive path")
+			directory := f.String("data-dir", dataDir, "EMPTY destination directory")
+			expected := f.String("expect-instance", "", "Instance ID printed by verify; required")
+			_ = f.Parse(os.Args[3:])
+			if *archive == "" || *expected == "" || f.NArg() != 0 {
+				log.Fatal("usage: chimeport maintenance restore --archive /backups/name.tar.gz --data-dir /data --expect-instance ID")
+			}
+			manifest, err := maintenance.Restore(*archive, *directory, *expected)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Restored into EMPTY directory: instance=%s schema=%d\n", manifest.InstanceID, manifest.SchemaVersion)
+		default:
+			log.Fatalf("unknown maintenance subcommand %q", os.Args[2])
+		}
 	case "bootstrap":
 		f := flag.NewFlagSet("bootstrap", flag.ExitOnError)
 		username := f.String("username", "admin", "First administrator username")
