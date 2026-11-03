@@ -519,8 +519,7 @@ func Restore(archivePath, emptyDataDir, confirmedInstanceID string) (Manifest, e
 		return empty, fmt.Errorf("instance mismatch: archive belongs to %s", manifest.InstanceID)
 	}
 	marker := filepath.Join(emptyDataDir, ".restore-in-progress")
-	if err := os.WriteFile(marker, []byte(manifest.InstanceID+"
-"), 0600); err != nil {
+	if err := os.WriteFile(marker, []byte(manifest.InstanceID + string(byte(10))), 0600); err != nil {
 		return empty, err
 	}
 	// If interrupted, the marker forces OpenStore to fail rather than use a
