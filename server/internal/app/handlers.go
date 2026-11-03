@@ -280,7 +280,7 @@ func (a *App) listTokens(w http.ResponseWriter, r *http.Request) {
 		failure(w, 404, "not_found", "Source not found")
 		return
 	}
-	rows, err := a.Store.DB.QueryContext(r.Context(), "SELECT id,prefix,label,description,expires_at,revoked_at,created_at FROM source_tokens WHERE source_id=? ORDER BY id", id)
+	rows, err := a.Store.DB.QueryContext(r.Context(), `SELECT t.id,t.prefix,t.label,t.description,t.expires_at,t.revoked_at,t.created_at,COALESCE(group_concat(c.slug, ','), '') FROM source_tokens t LEFT JOIN token_channels tc ON tc.token_id=t.id LEFT JOIN channels c ON c.id=tc.channel_id WHERE t.source_id=? GROUP BY t.id ORDER BY t.id`, id)
 	if err != nil {
 		a.err(w, err)
 		return
@@ -289,13 +289,17 @@ func (a *App) listTokens(w http.ResponseWriter, r *http.Request) {
 	items := []any{}
 	for rows.Next() {
 		var id int64
-		var prefix, label, description, created string
+		var prefix, label, description, created, allowedSlugs string
 		var expires, revoked sql.NullString
-		if err := rows.Scan(&id, &prefix, &label, &description, &expires, &revoked, &created); err != nil {
+		if err := rows.Scan(&id, &prefix, &label, &description, &expires, &revoked, &created, &allowedSlugs); err != nil {
 			a.err(w, err)
 			return
 		}
-		items = append(items, map[string]any{"id": id, "prefix": prefix, "label": label, "description": description, "expires_at": nullable(expires), "revoked_at": nullable(revoked), "created_at": created})
+		allowedChannels := []string{}
+        if allowedSlugs != "" {
+            allowedChannels = strings.Split(allowedSlugs, ",")
+        }
+        items = append(items, map[string]any{"id": id, "prefix": prefix, "label": label, "description": description, "expires_at": nullable(expires), "revoked_at": nullable(revoked), "created_at": created, "allowed_channels": allowedChannels})
 	}
 	if err := rows.Err(); err != nil {
 		a.err(w, err)
