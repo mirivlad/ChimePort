@@ -386,6 +386,82 @@ func (a *App) createToken(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 201, map[string]any{"id": tokenID, "token": token, "prefix": token[:14], "label": in.Label, "channel_ids": in.ChannelIDs, "expires_at": expires})
 }
+
+// updateTokenPermissions atomically replaces the channels a publication token can access.
+// The secret and token identity remain unchanged, so existing integrations keep working.
+func (a *App) updateTokenPermissions(w http.ResponseWriter, r *http.Request) {
+	p, ok := a.authorize(w, r)
+	if !ok {
+		return
+	}
+	sourceID, e1 := parseID(r.PathValue("id"))
+	tokenID, e2 := parseID(r.PathValue("token_id"))
+	if e1 != nil || e2 != nil || !a.ownSource(r, p.ID, sourceID) {
+		failure(w, 404, "not_found", "Token not found")
+		return
+	}
+	var in struct {
+		ChannelIDs []int64 `json:"channel_ids"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if len(in.ChannelIDs) < 1 || len(in.ChannelIDs) > 100 {
+		failure(w, 400, "invalid_channels", "Select 1-100 allowed channels")
+		return
+	}
+	seen := make(map[int64]bool, len(in.ChannelIDs))
+	for _, id := range in.ChannelIDs {
+		if id <= 0 || seen[id] {
+			failure(w, 400, "invalid_channels", "Channel IDs must be positive and unique")
+			return
+		}
+		seen[id] = true
+	}
+	tx, err := a.Store.DB.BeginTx(r.Context(), nil)
+	if err != nil {
+		a.err(w, err)
+		return
+	}
+	defer tx.Rollback()
+	var found int
+	err = tx.QueryRowContext(r.Context(), "SELECT 1 FROM source_tokens WHERE id=? AND source_id=? AND revoked_at IS NULL", tokenID, sourceID).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		failure(w, 404, "not_found", "Active token not found")
+		return
+	}
+	if err != nil {
+		a.err(w, err)
+		return
+	}
+	for _, channelID := range in.ChannelIDs {
+		err = tx.QueryRowContext(r.Context(), "SELECT 1 FROM channels WHERE id=? AND owner_id=?", channelID, p.ID).Scan(&found)
+		if errors.Is(err, sql.ErrNoRows) {
+			failure(w, 400, "invalid_channels", "All channels must belong to you")
+			return
+		}
+		if err != nil {
+			a.err(w, err)
+			return
+		}
+	}
+	if _, err = tx.ExecContext(r.Context(), "DELETE FROM token_channels WHERE token_id=?", tokenID); err != nil {
+		a.err(w, err)
+		return
+	}
+	for _, channelID := range in.ChannelIDs {
+		if _, err = tx.ExecContext(r.Context(), "INSERT INTO token_channels(token_id,channel_id) VALUES(?,?)", tokenID, channelID); err != nil {
+			a.err(w, err)
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		a.err(w, err)
+		return
+	}
+	respond(w, 200, map[string]any{"id": tokenID, "channel_ids": in.ChannelIDs, "updated": true})
+}
+
 func (a *App) viewToken(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.authorize(w, r)
 	if !ok {
@@ -467,6 +543,13 @@ func (a *App) publish(w http.ResponseWriter, r *http.Request) {
 	var in publishInput
 	if !decode(w, r, &in) {
 		return
+	}
+	if channelFromURL := r.URL.Query().Get("channel"); channelFromURL != "" {
+		if in.Channel != "" && in.Channel != channelFromURL {
+			failure(w, 400, "channel_mismatch", "Channel in URL and JSON body must match")
+			return
+		}
+		in.Channel = channelFromURL
 	}
 	if in.Priority == "" {
 		in.Priority = "normal"

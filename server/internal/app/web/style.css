@@ -143,3 +143,26 @@ input:focus, textarea:focus, select:focus { border-color: #81baf3; outline: 1px 
   .account { justify-content: flex-end; gap: 7px; }
   #identity { font-size: .75rem; }
 }
+
+/* Per-channel publication endpoints and token management */
+.examples-link { display: inline-flex; padding: 7px 12px; border: 1px solid #426080; border-radius: 999px; color: var(--accent); background: #182d42; text-decoration: none; font-weight: 650; }
+.examples-link:hover { background: #24415e; }
+.list-card:has(.channel-url) { flex-wrap: wrap; }
+.channel-url { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.channel-endpoint { font-size: .81rem; overflow-wrap: anywhere; max-width: 100%; color: #b7ddff; user-select: all; }
+.channel-url > button { padding: 5px 10px; font-size: .8rem; }
+.channel-token-details { flex-basis: 100%; width: 100%; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 13px; }
+.channel-token-details h4 { margin-bottom: 12px; }
+.examples-layout { max-width: 980px; margin: 28px auto 70px; padding: 0 20px; }
+.examples-intro { padding: 24px; margin-bottom: 18px; }
+.examples-intro p { margin: 12px 0; color: var(--muted); }
+.examples-picker { display: grid; gap: 6px; max-width: 460px; margin-top: 18px; }
+.example-card { margin: 16px 0; padding: 22px; }
+.example-card .section-heading { margin-bottom: 14px; }
+.example-card pre { background: #0a1523; color: #d1e8ff; padding: 18px; border-radius: 12px; overflow-x: auto; line-height: 1.6; font-size: .84rem; white-space: pre; }
+.example-card .hint { margin: 0 0 8px; }
+@media (max-width: 660px) {
+  .channel-url { align-items: flex-start; flex-direction: column; }
+  .examples-link { font-size: .82rem; }
+  .example-card { padding: 15px; }
+}

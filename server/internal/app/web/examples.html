@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>ChimePort — Примеры отправки</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/examples.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">C</span><span>ChimePort <small>Примеры отправки</small></span></div>
+    <div class="account"><a class="examples-link" href="/">← Вернуться в панель</a></div>
+  </header>
+  <main class="examples-layout">
+    <section class="panel examples-intro">
+      <div class="eyebrow">ИНТЕГРАЦИИ</div>
+      <h1>Как отправить уведомление</h1>
+      <p>Нужен токен источника ChimePort, которому разрешена отправка в выбранный канал. Все примеры используют HTTPS и передают токен только в заголовке Authorization.</p>
+      <label class="examples-picker">Канал
+        <select id="example-channel"><option value="home">home (пример)</option></select>
+      </label>
+      <p class="small-note">Если вы вошли в веб-панель, здесь появятся ваши каналы. Адреса формируются для текущего сервера. Секреты токенов сюда не подставляются.</p>
+    </section>
+    <div id="examples-list"></div>
+  </main>
+</body>
+</html>

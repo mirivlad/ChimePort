@@ -20,9 +20,17 @@ jobs:
       - name: Resolve modules
         run: go mod tidy
       - name: Format
-        run: test -z "$(gofmt -l .)"
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            printf "Files requiring gofmt:\n%s\n" "$files"
+            gofmt -d .
+            exit 1
+          fi
       - name: Check web JavaScript syntax
-        run: node --check internal/app/web/app.js
+        run: |
+          node --check internal/app/web/app.js
+          node --check internal/app/web/examples.js
       - name: Test
         run: go test -race ./...
       - name: Vet
