@@ -48,13 +48,16 @@ function examples() {
       title: 'JavaScript / Node.js',
       caption: 'Node.js 18+ с встроенным fetch',
       code: [
+        'async function main() {',
         'const res = await fetch(' + quoted + ', {',
         '  method: "POST",',
         '  headers: { Authorization: "Bearer " + process.env.CHIMEPORT_TOKEN, "Content-Type": "application/json" },',
         '  body: JSON.stringify({ title: "Проверка", body: "Из Node.js", priority: "normal" })',
         '});',
         'if (!res.ok) throw new Error(await res.text());',
-        'console.log(await res.json());'
+        'console.log(await res.json());',
+        '}',
+        'main().catch(console.error);'
       ].join('\n')
     },
     {

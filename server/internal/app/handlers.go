@@ -386,6 +386,7 @@ func (a *App) createToken(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 201, map[string]any{"id": tokenID, "token": token, "prefix": token[:14], "label": in.Label, "channel_ids": in.ChannelIDs, "expires_at": expires})
 }
+
 // updateTokenPermissions atomically replaces the channels a publication token can access.
 // The secret and token identity remain unchanged, so existing integrations keep working.
 func (a *App) updateTokenPermissions(w http.ResponseWriter, r *http.Request) {
