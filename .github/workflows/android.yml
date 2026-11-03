@@ -1,7 +1,5 @@
 name: Android APK and prerelease
 on:
-  pull_request:
-    paths: ["android/**", ".github/workflows/android.yml"]
   push:
     branches: [main]
     paths: ["android/**", ".github/workflows/android.yml"]
@@ -18,12 +16,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
       - name: Install Android SDK
-        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug-signed APK
         working-directory: android
         run: gradle --no-daemon --stacktrace :app:assembleDebug
