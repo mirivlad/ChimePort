@@ -6,14 +6,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -25,13 +21,15 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
     private val cache = Cache(application)
     private val eventStream = EventStream()
     private val liveJobs = mutableMapOf<String, Job>()
-    private val syncLocks = ConcurrentHashMap<String, Mutex>()
     private var foreground = false
-    private val mutable = MutableStateFlow(AppState(theme = cache.theme()))
+    private val mutable = MutableStateFlow(AppState(theme = cache.theme(), backgroundLive = BackgroundLiveService.enabled(application)))
     val state: StateFlow<AppState> = mutable
 
     init {
         reload()
+        viewModelScope.launch {
+            ChangeBus.changed.collect { reload() }
+        }
         if (mutable.value.servers.isNotEmpty()) refresh()
     }
 
@@ -46,18 +44,50 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Lifecycle-owned live streams: never run them as a persistent background service. */
+    /** Screen-visible SSE when background service is disabled; user-enabled service owns streams otherwise. */
     fun startRealtime() {
         foreground = true
+        if (BackgroundLiveService.enabled(getApplication())) {
+            stopOwnStreams()
+            if (!BackgroundLiveService.running) {
+                runCatching { BackgroundLiveService.enable(getApplication()) }.onFailure { error ->
+                    mutable.update { it.copy(message = "Не удалось запустить фоновую доставку: " + describe(error)) }
+                }
+            }
+            return
+        }
         reconcileRealtime()
     }
 
-    fun stopRealtime() {
-        foreground = false
+    private fun stopOwnStreams() {
         liveJobs.values.forEach { it.cancel() }
         liveJobs.clear()
         eventStream.disconnectAll()
         mutable.update { it.copy(liveStatuses = emptyMap()) }
+    }
+
+    fun stopRealtime() {
+        foreground = false
+        stopOwnStreams()
+    }
+
+    fun setBackgroundLive(enabled: Boolean) {
+        if (enabled) {
+            try {
+                BackgroundLiveService.enable(getApplication())
+                stopOwnStreams()
+                mutable.update { it.copy(backgroundLive = true, message = null) }
+            } catch (error: Exception) {
+                BackgroundLiveService.disable(getApplication())
+                mutable.update { it.copy(backgroundLive = false,
+                    message = "Не удалось включить фоновую доставку: " + describe(error)) }
+                if (foreground) reconcileRealtime()
+            }
+        } else {
+            BackgroundLiveService.disable(getApplication())
+            mutable.update { it.copy(backgroundLive = false) }
+            if (foreground) reconcileRealtime()
+        }
     }
 
     private fun setLiveStatus(id: String, status: LiveStatus) {
@@ -69,6 +99,13 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun reconcileRealtime() {
         if (!foreground) return
+        if (BackgroundLiveService.enabled(getApplication())) {
+            stopOwnStreams()
+            if (!BackgroundLiveService.running) {
+                runCatching { BackgroundLiveService.enable(getApplication()) }
+            }
+            return
+        }
         val accounts = cache.servers()
         val ids = accounts.map { it.id }.toSet()
         liveJobs.keys.toList().filter { it !in ids }.forEach { id ->
@@ -85,17 +122,8 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun restartRealtime() {
         if (!foreground) return
-        stopRealtime()
+        stopOwnStreams()
         startRealtime()
-    }
-
-    private suspend fun syncLocked(account: ServerAccount): List<Notice> = withContext(Dispatchers.IO) {
-        syncLocks.getOrPut(account.id) { Mutex() }.withLock {
-            // Always use the newest saved cursor rather than the original SSE snapshot.
-            val current = cache.servers().firstOrNull { it.id == account.id }
-            if (current == null) emptyList()
-            else syncOne(current)
-        }
     }
 
     private suspend fun watchServer(id: String) {
@@ -109,41 +137,26 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                 break
             }
             setLiveStatus(id, if (failures == 0) LiveStatus.CONNECTING else LiveStatus.RECONNECTING)
-            // Conflation prevents a burst of SSE hints from spawning unbounded refresh jobs.
-            // REST cursor sync will retrieve all missed events, not merely the last SSE ID.
-            val triggers = Channel<String>(Channel.CONFLATED)
-            val worker = viewModelScope.launch {
-                for (eventId in triggers) {
-                    try {
-                        val fresh = syncLocked(account)
-                        reload()
-                        // An initial connection and catch-up must be silent. Only the live event
-                        // that was just signalled can produce a system notification.
-                        if (eventId.isNotBlank()) {
-                            fresh.firstOrNull { it.id == eventId }?.let { notice ->
-                                LiveNotifications.show(getApplication(), notice)
-                            }
-                        }
-                        mutable.update { it.copy(syncError = null) }
-                    } catch (cancel: CancellationException) {
-                        throw cancel
-                    } catch (error: Exception) {
-                        mutable.update {
-                            it.copy(syncError = account.label + ": " + describe(error))
-                        }
-                    }
-                }
-            }
             try {
                 eventStream.listen(
                     account,
                     onConnected = {
                         failures = 0
+                        // Run one silent sync before interpreting a live event.
+                        ServerSync.refresh(cache, id)
+                        reload()
                         setLiveStatus(id, LiveStatus.CONNECTED)
-                        // Covers the commit -> subscribe race and any offline backlog.
-                        triggers.trySend("")
                     },
-                    onMessage = { lastId -> triggers.trySend(lastId) }
+                    onMessage = { lastId ->
+                        // Await REST+SQLite before publishing the new UI state; no worker can
+                        // be cancelled between showing a notification and rendering the feed.
+                        val added = ServerSync.refresh(cache, id)
+                        reload()
+                        mutable.update { it.copy(syncError = null) }
+                        added.firstOrNull { it.id == lastId }?.let { notice ->
+                            LiveNotifications.show(getApplication(), notice)
+                        }
+                    }
                 )
             } catch (cancel: CancellationException) {
                 throw cancel
@@ -153,11 +166,9 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                     break
                 }
                 setLiveStatus(id, LiveStatus.RECONNECTING)
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 setLiveStatus(id, LiveStatus.RECONNECTING)
-            } finally {
-                triggers.close()
-                worker.cancel()
+                mutable.update { it.copy(syncError = account.label + ": " + describe(error)) }
             }
             failures++
             delay((1000L shl failures.coerceAtMost(5)).coerceAtMost(30000L))
@@ -222,7 +233,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                     val login = Api.login(origin, username, password)
                     val account = cache.upsertAccount(origin, fresh, login,
                         label.ifBlank { origin.removePrefix("https://") })
-                    syncOne(account)
+                    ServerSync.refresh(cache, account.id)
                 }
             }
             result.onSuccess {
@@ -251,34 +262,6 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun syncOne(server: ServerAccount): List<Notice> {
-        val known = cache.messages().asSequence().filter { it.serverId == server.id }.map { it.id }.toMutableSet()
-        val added = mutableListOf<Notice>()
-        if (server.token.isEmpty()) throw IOException("Нужен повторный вход: локальный ключ сессии недоступен.")
-        if (Api.probe(server.origin).id != server.instanceId) {
-            throw IOException("Идентичность сервера изменилась. История не объединена — проверьте подключение.")
-        }
-        cache.replaceChannels(server.id, Api.channels(server))
-        var cursor = server.cursor
-        var count = 0
-        do {
-            val page = Api.messages(server, cursor)
-            for (notice in page.items) {
-                if (known.add(notice.id)) added.add(notice)
-            }
-            cache.applyPage(server.id, page)
-            if (page.hasMore && page.nextCursor == cursor) {
-                throw IOException("Сервер вернул повторный курсор синхронизации.")
-            }
-            cursor = page.nextCursor
-            count++
-            if (!page.hasMore) break
-        } while (count < 500)
-        cache.markSynced(server.id)
-        if (count >= 500) throw IOException("Большая история: нужна дополнительная синхронизация.")
-        return added
-    }
-
     fun refresh() {
         if (mutable.value.busy) return
         val accounts = cache.servers()
@@ -287,7 +270,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val errors = withContext(Dispatchers.IO) {
                 accounts.mapNotNull { account ->
-                    runCatching { syncLocked(account) }.exceptionOrNull()
+                    runCatching { ServerSync.refresh(cache, account.id) }.exceptionOrNull()
                         ?.let { account.label + ": " + describe(it) }
                 }
             }
@@ -318,6 +301,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         // Local removal always works offline; remote logout is a best-effort cleanup.
         cache.deleteAccount(id)
         reload()
+        ChangeBus.emit()
         reconcileRealtime()
         mutable.update { it.copy(message = "Подключение удалено с этого устройства.") }
         if (account != null) viewModelScope.launch(Dispatchers.IO) {
@@ -337,7 +321,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                     val session = Api.login(account.origin, account.username, password)
                     if (session.userId != account.userId) throw IOException("Это другая учётная запись.")
                     val updated = cache.upsertAccount(account.origin, InstanceInfo(account.instanceId, "ChimePort"), session, account.label)
-                    syncOne(updated)
+                    ServerSync.refresh(cache, updated.id)
                 }
             }
             reload()

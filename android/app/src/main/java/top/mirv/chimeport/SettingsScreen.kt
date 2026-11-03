@@ -41,6 +41,33 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
         }
         Spacer(Modifier.height(15.dp))
         val context = LocalContext.current
+        ElevatedCard(
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Фоновая доставка", style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(5.dp))
+                        Text("Экспериментально: постоянное соединение с серверами, " +
+                            "даже когда приложение свернуто или убрано из недавних. " +
+                            "Android показывает постоянное уведомление; возможен расход батареи.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = state.backgroundLive,
+                        onCheckedChange = model::setBackgroundLive)
+                }
+                Text("Принудительная остановка, ограничения прошивки или отключённый интернет " +
+                    "могут прервать доставку. После перезапуска телефона откройте приложение.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(15.dp))
         var notificationsAllowed by remember {
             mutableStateOf(
                 Build.VERSION.SDK_INT < 33 ||
@@ -91,7 +118,7 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                     Text("Об этом приложении", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold)
                 }
-                Text("ChimePort · Android alpha 0.2.0",
+                Text("ChimePort · Android alpha 0.3.0",
                     style = MaterialTheme.typography.bodyMedium)
                 Text(
                     "Все серверы независимы, сообщения хранятся у владельца сервера, " +
@@ -100,10 +127,10 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                 )
                 HorizontalDivider()
                 Text(
-                    "Пока приложение открыто, оно слушает новые события через защищённое " +
-                        "соединение и автоматически обновляет ленту. Новые события могут " +
-                        "появляться в шторке Android при разрешении ОС. После закрытия " +
-                        "приложения фоновой доставки пока нет. Это не аварийная сигнализация.",
+                    "Когда приложение открыто, лента обновляется автоматически через SSE. " +
+                        "В настройках можно включить экспериментальную фоновую доставку " +
+                        "с постоянным уведомлением. Принудительная остановка Android " +
+                        "может прервать соединение: это не аварийная сигнализация.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

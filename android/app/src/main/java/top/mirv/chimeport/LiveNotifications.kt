@@ -41,7 +41,7 @@ object LiveNotifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         val body = notice.body.ifBlank { notice.channelName }
         val notification = Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.chimeport_icon)
+            .setSmallIcon(R.drawable.chimeport_notification)
             .setContentTitle(notice.title)
             .setContentText(body)
             .setStyle(Notification.BigTextStyle().bigText(body))

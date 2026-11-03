@@ -64,5 +64,6 @@ data class AppState(
     val search: String = "",
     val addingServer: Boolean = false,
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
+    val backgroundLive: Boolean = false,
     val liveStatuses: Map<String, LiveStatus> = emptyMap()
 )
