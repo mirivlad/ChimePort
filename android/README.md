@@ -46,3 +46,12 @@ The actual published alpha-5 and alpha-6 APK signatures are **different**, altho
 From the next alpha onward, CI sets an explicit CHIMEPORT_SIGNING_KEYSTORE for Gradle, verifies the **actual output APK** with apksigner, and compares the certificate with a pinned SHA-256 fingerprint. A missing cache now **fails the release build** instead of silently generating a new key. PR validation APKs may have another debug certificate and must not be distributed as upgrades.
 
 The signing key is still held in Actions cache. This is a **temporary alpha-only solution**, not a secure or durable release setup. Before stable releases, migrate a protected signing keystore to GitHub Actions Secrets, not into Git.
+
+## Alpha 9: repeated swipe regression fix
+
+Swipe gesture state is scoped to both message identity and current read flag.
+The old Compose state retained a callback capturing stale read state after restoring
+a read notification to Unread. The card moved but the next gesture did nothing.
+Updated callback references and a gesture-state reset after every read-state change
+prevent this; a JVM regression test covers multiple unread/read/unread cycles.
+Android-only change; no server update necessary. CI checks the signed output APK.

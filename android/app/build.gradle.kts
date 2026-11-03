@@ -10,8 +10,8 @@ android {
         applicationId = "top.mirv.chimeport"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0-alpha"
+        versionCode = 5
+        versionName = "0.4.1-alpha"
     }
     // Main CI uses an explicit key. PR/local debug builds use default debug signing.
     signingConfigs {
