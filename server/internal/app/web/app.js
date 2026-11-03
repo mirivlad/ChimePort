@@ -103,8 +103,25 @@ function renderChannels() {
     const body = el('div', undefined, 'item-body');
     body.append(el('h3', channel.name), el('code', channel.slug, 'slug'));
     if (channel.description) body.append(el('p', channel.description, 'muted-line'));
-    const action = button('Уведомления', () => { filter.value = channel.slug; showTab('inbox'); renderMessages(); });
-    card.append(icon, body, action);
+    const url = new URL('/api/v1/messages', window.location.origin);
+    url.searchParams.set('channel', channel.slug);
+    const urlRow = el('div', undefined, 'channel-url');
+    urlRow.append(el('span', 'Адрес для отправки', 'meta'), el('code', url.toString(), 'channel-endpoint'));
+    urlRow.append(button('Копировать адрес', async () => {
+      try { await navigator.clipboard.writeText(url.toString()); notice('Адрес канала скопирован'); }
+      catch (err) { notice('Не удалось скопировать адрес: ' + err.message, true); }
+    }, 'secondary'));
+    body.append(urlRow);
+    const actions = el('div', undefined, 'actions');
+    actions.append(
+      button('Токены', () => showChannelTokens(channel)),
+      button('Уведомления', () => { filter.value = channel.slug; showTab('inbox'); renderMessages(); })
+    );
+    card.append(icon, body, actions);
+    const details = el('div', undefined, 'channel-token-details');
+    details.id = 'channel-tokens-' + channel.id;
+    details.hidden = true;
+    card.append(details);
     list.append(card);
   }
   filter.value = state.channels.some((c) => c.slug === selected) ? selected : '';
@@ -115,6 +132,65 @@ function renderChannels() {
     list.append(empty);
   }
   updateOverview();
+}
+
+async function showChannelTokens(channel, force = false) {
+  const host = $('channel-tokens-' + channel.id);
+  if (!host) return;
+  if (!force && !host.hidden) { host.hidden = true; host.replaceChildren(); return; }
+  host.hidden = false;
+  host.replaceChildren(el('p', 'Получаем список токенов…', 'hint'));
+  try {
+    const results = await Promise.all(state.sources.map(async (src) => {
+      const data = await api('/sources/' + src.id + '/tokens');
+      return data.items
+        .filter((token) => !token.revoked_at && Array.isArray(token.allowed_channels) && token.allowed_channels.includes(channel.slug))
+        .map((token) => ({ src, token }));
+    }));
+    const entries = results.flat();
+    host.replaceChildren(el('h4', 'Токены с доступом к «' + channel.name + '»'));
+    if (!entries.length) {
+      host.append(el('p', 'У этого канала пока нет токенов отправки. Создайте токен в разделе «Источники».', 'hint'));
+      return;
+    }
+    for (const { src, token } of entries) {
+      const row = el('div', undefined, 'token-row');
+      const info = el('div', undefined, 'item-body');
+      const expired = token.expires_at && new Date(token.expires_at) <= new Date();
+      const title = el('div', undefined, 'token-title');
+      title.append(el('strong', token.label), el('span', expired ? 'Истёк' : 'Активен', expired ? 'tag dim' : 'tag ok'));
+      info.append(title, el('p', 'Источник: ' + src.name + ' · ' + token.prefix + '…', 'meta'));
+      if (token.description) info.append(el('p', token.description, 'muted-line'));
+      const secret = el('code', '', 'token-secret');
+      secret.hidden = true;
+      const actions = el('div', undefined, 'actions');
+      let visible = false;
+      const reveal = button('Показать', async () => {
+        if (visible) { visible = false; secret.hidden = true; secret.textContent = ''; reveal.textContent = 'Показать'; return; }
+        try {
+          const result = await api('/sources/' + src.id + '/tokens/' + token.id + '/secret');
+          secret.textContent = result.token;
+          secret.hidden = false;
+          visible = true;
+          reveal.textContent = 'Скрыть';
+        } catch (err) { notice(err.message, true); }
+      });
+      actions.append(reveal, button('Копировать', async () => {
+        try {
+          const result = await api('/sources/' + src.id + '/tokens/' + token.id + '/secret');
+          await navigator.clipboard.writeText(result.token);
+          notice('Токен скопирован');
+        } catch (err) { notice('Не удалось скопировать токен: ' + err.message, true); }
+      }));
+      actions.append(button('Редактировать', () => openPermissionsDialog(src, token, channel)));
+      info.append(secret);
+      row.append(info, actions);
+      host.append(row);
+    }
+  } catch (err) {
+    host.replaceChildren(el('p', 'Не удалось получить токены: ' + err.message, 'field-error'));
+    notice(err.message, true);
+  }
 }
 
 function renderSources() {
@@ -202,9 +278,9 @@ async function showTokens(src, force = false) {
     }
   } catch (err) { host.replaceChildren(el('p', 'Не удалось загрузить токены: ' + err.message, 'field-error')); notice(err.message, true); }
 }
-function openPermissionsDialog(src, token) {
+function openPermissionsDialog(src, token, channel = null) {
   const allowed = new Set(Array.isArray(token.allowed_channels) ? token.allowed_channels : []);
-  state.editingToken = { src, token };
+  state.editingToken = { src, token, channel };
   $('permissions-heading').textContent = `Права · ${token.label}`;
   $('permissions-source').textContent = `Источник: ${src.name}`;
   const picker = $('permissions-channel-list');
@@ -243,7 +319,8 @@ async function savePermissions(event) {
       method: 'PATCH', body: JSON.stringify({ channel_ids })
     });
     $('permissions-dialog').close();
-    await showTokens(selection.src, true);
+    if (selection.channel) await showChannelTokens(selection.channel, true);
+    else await showTokens(selection.src, true);
     notice('Права токена обновлены. Перевыпускать токен не нужно.');
   } catch (err) { notice('Не удалось изменить права: ' + err.message, true); }
   finally { save.disabled = false; }
@@ -436,6 +513,17 @@ $('toggle-all-permissions').addEventListener('click', () => {
   const selectAll = !nodes.every((node) => node.checked);
   nodes.forEach((node) => { node.checked = selectAll; });
   updatePermissionsButton();
+});
+$('revoke-permissions').addEventListener('click', async () => {
+  const selection = state.editingToken;
+  if (!selection || !confirm('Отозвать токен «' + selection.token.label + '»? Отправка по нему прекратится.')) return;
+  try {
+    await api('/sources/' + selection.src.id + '/tokens/' + selection.token.id, { method: 'DELETE' });
+    $('permissions-dialog').close();
+    if (selection.channel) await showChannelTokens(selection.channel, true);
+    else await showTokens(selection.src, true);
+    notice('Токен отозван');
+  } catch (err) { notice('Не удалось отозвать токен: ' + err.message, true); }
 });
 $('cancel-permissions').addEventListener('click', () => $('permissions-dialog').close());
 $('close-permissions').addEventListener('click', () => $('permissions-dialog').close());
