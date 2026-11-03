@@ -91,7 +91,7 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                     Text("Об этом приложении", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold)
                 }
-                Text("ChimePort · Android alpha 0.1.0",
+                Text("ChimePort · Android alpha 0.2.0",
                     style = MaterialTheme.typography.bodyMedium)
                 Text(
                     "Все серверы независимы, сообщения хранятся у владельца сервера, " +

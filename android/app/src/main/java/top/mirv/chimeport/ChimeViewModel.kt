@@ -61,6 +61,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun setLiveStatus(id: String, status: LiveStatus) {
+        if (!foreground) return
         mutable.update { state ->
             state.copy(liveStatuses = state.liveStatuses + (id to status))
         }
@@ -90,9 +91,10 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun syncLocked(account: ServerAccount): List<Notice> = withContext(Dispatchers.IO) {
         syncLocks.getOrPut(account.id) { Mutex() }.withLock {
-            // Do not restore a removed server's local data in a late network response.
-            if (cache.servers().none { it.id == account.id }) emptyList()
-            else syncOne(account)
+            // Always use the newest saved cursor rather than the original SSE snapshot.
+            val current = cache.servers().firstOrNull { it.id == account.id }
+            if (current == null) emptyList()
+            else syncOne(current)
         }
     }
 
