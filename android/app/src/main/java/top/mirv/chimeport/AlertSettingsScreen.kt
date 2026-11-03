@@ -1,6 +1,12 @@
 package top.mirv.chimeport
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import androidx.compose.foundation.clickable
@@ -120,6 +126,63 @@ fun AlertSettingsScreen(
         var vibrate by remember(channel.serverId, channel.slug, state.alertSettingsRevision) {
             mutableStateOf(saved.vibrate)
         }
+        var ringtoneUri by remember(channel.serverId, channel.slug, state.alertSettingsRevision) {
+            mutableStateOf(saved.ringtoneUri)
+        }
+        var ringtoneTitle by remember(channel.serverId, channel.slug, state.alertSettingsRevision) {
+            mutableStateOf(saved.ringtoneTitle)
+        }
+        var pickerError by remember(channel.serverId, channel.slug) {
+            mutableStateOf<String?>(null)
+        }
+        val picker = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                @Suppress("DEPRECATION")
+                val chosen: Uri? = result.data?.getParcelableExtra(
+                    RingtoneManager.EXTRA_RINGTONE_PICKED_URI
+                )
+                when {
+                    chosen == null ->
+                        pickerError = "Мелодия не выбрана. Для тишины есть отдельный пункт."
+                    chosen.scheme != "content" && chosen.scheme != "android.resource" ->
+                        pickerError = "Android вернул неподдерживаемый адрес мелодии."
+                    else -> {
+                        ringtoneUri = chosen.toString()
+                        ringtoneTitle = runCatching {
+                            RingtoneManager.getRingtone(context, chosen)?.getTitle(context)
+                                ?.takeIf { it.isNotBlank() }
+                        }.getOrNull() ?: "Выбранный звук телефона"
+                        sound = AlertSound.DEVICE
+                        pickerError = null
+                    }
+                }
+            }
+        }
+        val launchPicker: () -> Unit = {
+            pickerError = null
+            val current = ringtoneUri.takeIf { it.isNotBlank() }?.let(Uri::parse)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Звук канала «" + channel.name + "»")
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                putExtra(
+                    RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI,
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                )
+                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, current)
+            }
+            try {
+                picker.launch(intent)
+            } catch (_: ActivityNotFoundException) {
+                pickerError = "На этом устройстве нет системного выбора звуков."
+            } catch (_: SecurityException) {
+                pickerError = "Android не разрешил открыть список звуков."
+            }
+        }
         AlertDialog(
             onDismissRequest = { selected = null },
             title = { Text(channel.name) },
@@ -134,18 +197,49 @@ fun AlertSettingsScreen(
                     Text("Звук", style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold)
                     AlertSound.entries.forEach { option ->
+                        val choose: () -> Unit = {
+                            if (option == AlertSound.DEVICE) launchPicker() else sound = option
+                        }
                         Row(
-                            Modifier.fillMaxWidth().clickable { sound = option },
+                            Modifier.fillMaxWidth().clickable(onClick = choose),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(selected = sound == option, onClick = { sound = option })
-                            Text(option.label, Modifier.weight(1f))
-                            if (option != AlertSound.SILENT) {
-                                IconButton(onClick = { previewAlert(context, option) }) {
+                            RadioButton(selected = sound == option, onClick = choose)
+                            Column(Modifier.weight(1f)) {
+                                Text(option.label)
+                                if (option == AlertSound.DEVICE && ringtoneUri.isNotBlank()) {
+                                    Text(
+                                        ringtoneTitle.ifBlank { "Выбранный звук телефона" },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            when (option) {
+                                AlertSound.DEVICE -> {
+                                    IconButton(onClick = launchPicker) {
+                                        Icon(Icons.Outlined.LibraryMusic, "Выбрать звук телефона")
+                                    }
+                                    if (ringtoneUri.isNotBlank()) {
+                                        IconButton(onClick = {
+                                            previewAlert(context, option, ringtoneUri)
+                                        }) {
+                                            Icon(Icons.Outlined.PlayArrow, "Прослушать")
+                                        }
+                                    }
+                                }
+                                AlertSound.SILENT -> Unit
+                                else -> IconButton(onClick = { previewAlert(context, option) }) {
                                     Icon(Icons.Outlined.PlayArrow, "Прослушать " + option.label)
                                 }
                             }
                         }
+                    }
+                    pickerError?.let { error ->
+                        Text(
+                            error, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
                     Text("Приоритет", style = MaterialTheme.typography.titleSmall,
@@ -177,7 +271,10 @@ fun AlertSettingsScreen(
             confirmButton = {
                 Button(onClick = {
                     model.configureAlert(
-                        channel, AlertProfile(sound = sound, vibrate = vibrate, level = level)
+                        channel, AlertProfile(
+                            sound = sound, vibrate = vibrate, level = level,
+                            ringtoneUri = ringtoneUri, ringtoneTitle = ringtoneTitle
+                        )
                     )
                     selected = null
                 }) { Text("Сохранить") }
@@ -189,10 +286,15 @@ fun AlertSettingsScreen(
     }
 }
 
-private fun previewAlert(context: Context, choice: AlertSound) {
+private fun previewAlert(context: Context, choice: AlertSound, deviceUri: String = "") {
     runCatching {
         when (choice) {
             AlertSound.SILENT -> Unit
+            AlertSound.DEVICE -> {
+                if (deviceUri.isNotBlank()) {
+                    RingtoneManager.getRingtone(context, Uri.parse(deviceUri))?.play()
+                }
+            }
             AlertSound.SYSTEM -> {
                 RingtoneManager.getRingtone(
                     context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)

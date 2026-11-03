@@ -66,3 +66,7 @@ Android-only change; no server update necessary. CI checks the signed output APK
 - No server-side changes for alpha 10. The APK signing fingerprint is verified before publishing.
 
 The two original ChimePort notification tones were synthesized for the application, with no external music dependency.
+
+## Alpha 11 — Android system ringtone picker
+
+The per-channel sound settings now include **Из звуков телефона**, launching Android's native notification ringtone picker (`RingtoneManager.ACTION_RINGTONE_PICKER`, `TYPE_NOTIFICATION`). Choosing a system or installed notification tone stores its URI and display title per ChimePort channel, without requesting broad access to the phone's music library. The chosen URI becomes the sound for the next revision of that channel's Android `NotificationChannel`, because Android does not allow changing an existing channel's sound. The system can still override per-channel sound and Do Not Disturb applies. The original ChimePort sounds remain available. This does not yet provide a separate file-browser picker for arbitrary music files.

@@ -13,6 +13,28 @@ class AlertPolicyTest {
         assertEquals(AlertLane.HIGH, alertLane("low", AlertLevel.IMPORTANT))
     }
 
+    @Test fun deviceToneRotatesChannelOnlyWhenUriChanges() {
+        val picked = AlertProfile(
+            sound = AlertSound.DEVICE,
+            ringtoneUri = "content://media/internal/audio/media/17",
+            ringtoneTitle = "Первый звук"
+        )
+        val first = nextAlertProfile(AlertProfile(), picked)
+        assertEquals(1, first.revision)
+        val sameSoundRenamed = nextAlertProfile(
+            first, first.copy(ringtoneTitle = "Новое название")
+        )
+        assertEquals(1, sameSoundRenamed.revision)
+        val second = nextAlertProfile(
+            sameSoundRenamed,
+            sameSoundRenamed.copy(ringtoneUri = "content://media/internal/audio/media/18")
+        )
+        assertEquals(2, second.revision)
+        assertEquals(
+            3, nextAlertProfile(second, second.copy(sound = AlertSound.SYSTEM)).revision
+        )
+    }
+
     @Test fun onlyActualSettingsChangesRotateChannelId() {
         val original = AlertProfile()
         val same = nextAlertProfile(original, original)

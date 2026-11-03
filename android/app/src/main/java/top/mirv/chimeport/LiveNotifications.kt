@@ -68,6 +68,9 @@ object LiveNotifications {
                 enableVibration(profile.vibrate && lane != AlertLane.QUIET)
                 val sound: Uri? = if (lane == AlertLane.QUIET) null else when (profile.sound) {
                     AlertSound.SYSTEM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    AlertSound.DEVICE -> profile.ringtoneUri.takeIf { it.isNotBlank() }
+                        ?.let(Uri::parse)
+                        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                     AlertSound.CHIME -> Uri.parse(
                         "android.resource://" + context.packageName + "/raw/chime_soft"
                     )
