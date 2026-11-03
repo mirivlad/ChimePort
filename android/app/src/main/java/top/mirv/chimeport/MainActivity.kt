@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ChimeApp(model: ChimeViewModel, state: AppState) {
     val owner = LocalLifecycleOwner.current
-    DisposableEffect(owner) {
+    DisposableEffect(owner, state.servers.size) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && state.servers.isNotEmpty()) model.refresh()
         }
