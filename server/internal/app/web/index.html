@@ -1,32 +1,98 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ChimePort</title><link rel="stylesheet" href="/style.css"></head>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>ChimePort — панель уведомлений</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
 <body>
-<header><strong class="brand">ChimePort</strong><span class="tagline">Your alerts. Your server.</span><span id="identity"></span><button id="logout" hidden>Выйти</button></header>
-<main>
-<section id="login-panel" class="panel narrow">
- <h1>Войти на свой сервер</h1><p class="hint">Учётные записи создаёт администратор. Публичной регистрации нет.</p>
- <form id="login-form"><label>Логин<input name="username" autocomplete="username" required></label>
- <label>Пароль<input type="password" name="password" autocomplete="current-password" required></label>
- <button type="submit">Войти</button></form>
-</section>
-<div id="app-panel" hidden>
- <nav aria-label="Разделы"><button class="tab active" data-tab="inbox">Входящие</button><button class="tab" data-tab="channels">Каналы</button><button class="tab" data-tab="sources">Источники и токены</button><button class="tab" id="admin-tab" data-tab="admin" hidden>Пользователи</button></nav>
- <section id="inbox" class="panel view"><div class="heading"><h1>Уведомления</h1><button id="refresh">Обновить</button></div>
- <div class="filters"><label>Канал<select id="filter-channel"><option value="">Все каналы</option></select></label></div>
- <div id="messages" class="messages"></div><button id="load-more" hidden>Показать ещё</button></section>
- <section id="channels" class="panel view" hidden><h1>Каналы</h1>
- <form id="channel-form" class="inline-form"><label>Код канала (например, home/security)<input name="slug" required pattern="[a-z0-9][a-z0-9_/-]*"></label>
- <label>Название<input name="name" required></label><label>Описание<input name="description"></label><button>Создать канал</button></form><div id="channel-list"></div></section>
- <section id="sources" class="panel view" hidden><h1>Источники и API-токены</h1>
- <form id="source-form" class="inline-form"><label>Название источника<input name="name" required placeholder="Home Assistant"></label>
- <label>Описание<input name="description"></label><button>Создать источник</button></form><div id="source-list"></div></section>
- <section id="admin" class="panel view" hidden><h1>Пользователи</h1><p class="hint">Создать логин и временный пароль, который пользователь должен сменить в следующем выпуске.</p>
- <form id="user-form" class="inline-form"><label>Логин<input name="username" minlength="3" required></label><label>Пароль (от 12 знаков)<input name="password" type="password" minlength="12" required></label>
- <label>Роль<select name="role"><option value="user">Пользователь</option><option value="admin">Администратор</option></select></label><button>Создать</button></form><div id="user-list"></div></section>
-</div>
-<div id="status" role="status" aria-live="polite"></div>
-</main>
-<template id="token-dialog-template"><dialog class="secret-dialog"><h2>Токен создан</h2><p>Токен можно позже снова показать и скопировать в разделе «Источники и токены».</p><code class="secret"></code><button class="copy">Копировать</button><button class="close">Закрыть</button></dialog></template>
-<script src="/app.js" defer></script>
-</body></html>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">C</span><span>ChimePort <small>Личный центр уведомлений</small></span></div>
+    <div class="account"><span class="server-address">Мой сервер</span><span id="identity"></span><button id="logout" type="button" class="quiet" hidden>Выйти</button></div>
+  </header>
+  <main class="layout">
+    <section id="login-panel" class="panel login-card">
+      <div class="eyebrow">ДОБРО ПОЖАЛОВАТЬ</div>
+      <h1>Войти в ChimePort</h1>
+      <p class="hint">Уведомления с ваших серверов и приложений в одном месте.</p>
+      <form id="login-form" class="form-stack">
+        <label>Логин<input name="username" autocomplete="username" required placeholder="Ваш логин"></label>
+        <label>Пароль<input type="password" name="password" autocomplete="current-password" required placeholder="Пароль"></label>
+        <button type="submit" class="primary">Войти</button>
+      </form>
+      <p class="small-note">Учётные записи создаёт администратор. Самостоятельная регистрация отключена.</p>
+    </section>
+    <div id="app-panel" class="workspace" hidden>
+      <aside class="sidebar">
+        <div class="sidebar-section">МОЁ ПРОСТРАНСТВО</div>
+        <nav aria-label="Разделы панели">
+          <button type="button" class="nav-item active" data-tab="inbox"><span aria-hidden="true">▣</span> Входящие <span id="nav-unread" class="nav-count" hidden></span></button>
+          <button type="button" class="nav-item" data-tab="channels"><span aria-hidden="true">◫</span> Каналы <span id="nav-channels" class="nav-count">0</span></button>
+          <button type="button" class="nav-item" data-tab="sources"><span aria-hidden="true">⌁</span> Источники и токены</button>
+          <button type="button" class="nav-item" id="admin-tab" data-tab="admin" hidden><span aria-hidden="true">♙</span> Пользователи</button>
+        </nav>
+        <div class="sidebar-help"><strong>Как это работает</strong><p>Создайте канал → добавьте источник → выдайте ему токен → отправляйте уведомления.</p></div>
+      </aside>
+      <div class="content">
+        <section id="inbox" class="view">
+          <div class="page-heading"><div><div class="eyebrow">УВЕДОМЛЕНИЯ</div><h1>Входящие</h1><p class="hint">Сообщения от ваших подключённых источников.</p></div><button id="refresh" type="button" class="secondary">Обновить</button></div>
+          <div id="onboarding" class="panel onboarding" hidden><strong>Начните с первого канала</strong><p class="hint">Каналы помогают разделить уведомления, например «Дом», «Серверы» и «Резервные копии».</p><button id="start-channel" type="button">Создать канал</button></div>
+          <div class="toolbar panel"><label>Показать канал<select id="filter-channel"><option value="">Все каналы</option></select></label><span id="message-count" class="hint"></span></div>
+          <div id="messages" class="messages"></div><button id="load-more" type="button" class="secondary load-more" hidden>Загрузить следующие сообщения</button>
+        </section>
+        <section id="channels" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">ОРГАНИЗАЦИЯ</div><h1>Каналы</h1><p class="hint">Канал — это папка для сообщений. Например, «Дом» или «Мониторинг».</p></div><button id="new-channel" type="button">+ Создать канал</button></div>
+          <div id="channel-form-panel" class="panel form-panel" hidden>
+            <div class="section-heading"><h2>Новый канал</h2><button id="close-channel" class="quiet" type="button" aria-label="Закрыть форму">✕</button></div>
+            <form id="channel-form" class="form-stack">
+              <label>Название канала <input name="name" required maxlength="100" placeholder="Например, Дом или Серверы"></label>
+              <label>Описание <span class="optional">необязательно</span><textarea name="description" rows="2" maxlength="1000" placeholder="Какие уведомления сюда приходят"></textarea></label>
+              <details class="advanced"><summary>Дополнительно: технический адрес канала</summary><label>Код для API <input name="slug" pattern="[a-z0-9][a-z0-9_/-]*" maxlength="80" placeholder="home/security" required></label><p class="small-note">Создаётся автоматически из названия. Используется в API и скриптах, после создания пока не меняется.</p></details>
+              <div class="form-actions"><button type="button" id="cancel-channel" class="secondary">Отмена</button><button type="submit">Создать канал</button></div>
+            </form>
+          </div>
+          <div id="channel-list" class="card-list"></div>
+        </section>
+        <section id="sources" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">ИНТЕГРАЦИИ</div><h1>Источники и токены</h1><p class="hint">Источник — приложение или скрипт, который отправляет сообщения, например Home Assistant.</p></div><button id="new-source" type="button">+ Добавить источник</button></div>
+          <div id="source-form-panel" class="panel form-panel" hidden>
+            <div class="section-heading"><h2>Новый источник</h2><button id="close-source" class="quiet" type="button" aria-label="Закрыть форму">✕</button></div>
+            <form id="source-form" class="form-stack"><label>Название источника<input name="name" required maxlength="100" placeholder="Например, Home Assistant"></label><label>Описание <span class="optional">необязательно</span><textarea name="description" maxlength="1000" rows="2" placeholder="Откуда будут приходить уведомления"></textarea></label><div class="form-actions"><button type="button" id="cancel-source" class="secondary">Отмена</button><button type="submit">Добавить источник</button></div></form>
+          </div>
+          <div id="source-helper" class="panel onboarding" hidden><strong>Сначала нужен канал</strong><p class="hint">Чтобы источник мог отправлять сообщения, у него должен быть хотя бы один разрешённый канал.</p><button id="go-channels" type="button">Перейти к каналам</button></div>
+          <div id="source-list" class="card-list"></div>
+        </section>
+        <section id="admin" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">УПРАВЛЕНИЕ СЕРВЕРОМ</div><h1>Пользователи</h1><p class="hint">Создавайте учётные записи и выбирайте их роль.</p></div><button id="new-user" type="button">+ Добавить пользователя</button></div>
+          <div id="user-form-panel" class="panel form-panel" hidden>
+            <div class="section-heading"><h2>Новый пользователь</h2><button id="close-user" type="button" class="quiet" aria-label="Закрыть форму">✕</button></div>
+            <form id="user-form" class="form-stack"><label>Логин<input name="username" minlength="3" maxlength="32" pattern="[a-z][a-z0-9_-]*" autocomplete="off" required placeholder="ivan"></label><label>Пароль (не менее 12 символов)<input name="password" type="password" minlength="12" autocomplete="new-password" required></label><label>Роль<select name="role"><option value="user">Пользователь</option><option value="admin">Администратор</option></select></label><p class="small-note">В этой версии смена и сброс пароля ещё не реализованы. Используйте индивидуальный пароль, не временный.</p><div class="form-actions"><button type="button" id="cancel-user" class="secondary">Отмена</button><button type="submit">Создать пользователя</button></div></form>
+          </div>
+          <div id="user-list" class="card-list"></div>
+        </section>
+      </div>
+    </div>
+    <div id="status" role="status" aria-live="polite"></div>
+  </main>
+  <dialog id="token-dialog" class="modal">
+    <form id="token-form" class="form-stack">
+      <div class="section-heading"><div><div class="eyebrow">ИСТОЧНИК</div><h2 id="token-heading">Новый токен</h2></div><button type="button" id="close-token" class="quiet" aria-label="Закрыть окно">✕</button></div>
+      <p class="hint">Токен разрешает отправлять уведомления только в выбранные каналы. Читать историю и управлять аккаунтом через него нельзя.</p>
+      <label>Название токена<input name="label" required maxlength="100" placeholder="Например, HA — датчики дверей"></label>
+      <label>Описание <span class="optional">необязательно</span><textarea name="description" rows="2" maxlength="1000" placeholder="Для чего используется токен"></textarea></label>
+      <fieldset class="channel-select"><legend>Куда можно отправлять уведомления <span class="required">*</span></legend><div class="picker-bar"><span class="hint">Выберите хотя бы один канал</span><button type="button" id="toggle-all-channels" class="text-button">Выбрать все</button></div><div id="token-channel-list" class="check-list"></div><p id="token-channel-error" class="field-error" hidden>Выберите хотя бы один канал.</p></fieldset>
+      <label>Срок действия <span class="optional">необязательно</span><input name="expires_at" type="datetime-local"><span class="small-note">Оставьте пустым, если токен не должен истекать автоматически.</span></label>
+      <div class="form-actions"><button type="button" id="cancel-token" class="secondary">Отмена</button><button type="submit" id="save-token">Создать токен</button></div>
+    </form>
+  </dialog>
+  <dialog id="secret-dialog" class="modal">
+    <div class="section-heading"><h2 id="secret-title">Токен создан</h2><button type="button" id="close-secret" class="quiet" aria-label="Закрыть окно">✕</button></div>
+    <p class="hint">Токен можно снова посмотреть и скопировать позже. Не публикуйте его в открытых репозиториях.</p>
+    <code id="secret-value" class="secret-value"></code>
+    <div class="form-actions"><button id="dismiss-secret" type="button" class="secondary">Закрыть</button><button id="copy-secret" type="button">Копировать токен</button></div>
+  </dialog>
+</body>
+</html>
