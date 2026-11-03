@@ -154,3 +154,19 @@ func TestRefuseStartupOnInterruptedRestore(t *testing.T) {
 		t.Fatal("server must not start with incomplete restoration marker")
 	}
 }
+
+func TestRejectBackupThroughSymlinkIntoLiveVolume(t *testing.T) {
+	data := t.TempDir()
+	_ = createStore(t, data)
+	inside := filepath.Join(data, "inside")
+	if err := os.Mkdir(inside, 0700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "out")
+	if err := os.Symlink(inside, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := maintenance.Backup(data, filepath.Join(link, "bad.tar.gz")); err == nil {
+		t.Fatal("backup output symlinked into source volume was accepted")
+	}
+}
