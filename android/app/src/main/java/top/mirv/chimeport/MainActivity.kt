@@ -92,11 +92,7 @@ class MainActivity : ComponentActivity() {
     private fun extractNotice(intent: Intent?): Pair<String, String>? {
         if (intent?.action != Intent.ACTION_VIEW) return null
         val uri: Uri = intent.data ?: return null
-        if (uri.scheme != "chimeport" || uri.authority != "notice") return null
-        val parts = uri.pathSegments
-        if (parts.size != 2 || parts[0].isBlank() ||
-            parts[1].isEmpty() || !parts[1].all { it.isDigit() }) return null
-        return parts[0] to parts[1]
+        return parseNotificationTarget(uri.scheme, uri.authority, uri.pathSegments)
     }
 }
 
