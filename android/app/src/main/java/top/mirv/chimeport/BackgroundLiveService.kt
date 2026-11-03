@@ -59,6 +59,7 @@ class BackgroundLiveService : Service() {
     private val cache by lazy { Cache(this) }
     private val streams = EventStream()
     private val jobs = mutableMapOf<String, Job>()
+    private var manager: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -92,8 +93,8 @@ class BackgroundLiveService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         running = true
-        if (jobs.isEmpty()) {
-            scope.launch {
+        if (manager?.isActive != true) {
+            manager = scope.launch {
                 while (isActive && enabled(this@BackgroundLiveService)) {
                     val accounts = cache.servers().map { it.id }
                     val ids = accounts.toSet()
