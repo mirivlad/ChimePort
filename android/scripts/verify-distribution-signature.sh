@@ -9,7 +9,10 @@ expected="$(tr '[:upper:]' '[:lower:]' < android/signing/expected-alpha-sha256.t
 test -x "$signer"
 test -x "$aapt"
 test -f "$apk"
-test "${#expected}" -eq 64
+if [ "${#expected}" -ne 64 ]; then
+  echo "::error::Pinned SHA-256 fingerprint must contain exactly 64 hex characters."
+  exit 1
+fi
 
 actual="$("$signer" verify --verbose --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1)"
 pkg="$("$aapt" dump badging "$apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -n1)"

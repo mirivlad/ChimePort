@@ -24,6 +24,11 @@ jobs:
         run: |
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Validate pinned signing fingerprint
+        shell: bash
+        run: |
+          expected="$(tr -d '[:space:]' < android/signing/expected-alpha-sha256.txt)"
+          [[ "$expected" =~ ^[a-f0-9]{64}$ ]]
       - name: Audit existing alpha APK signing certificates
         shell: bash
         run: bash android/scripts/audit-released-apks.sh
