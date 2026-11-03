@@ -69,10 +69,10 @@ object LiveNotifications {
                 val sound: Uri? = if (lane == AlertLane.QUIET) null else when (profile.sound) {
                     AlertSound.SYSTEM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                     AlertSound.CHIME -> Uri.parse(
-                        "android.resource://" + context.packageName + "/" + R.raw.chime_soft
+                        "android.resource://" + context.packageName + "/raw/chime_soft"
                     )
                     AlertSound.SIGNAL -> Uri.parse(
-                        "android.resource://" + context.packageName + "/" + R.raw.signal_pulse
+                        "android.resource://" + context.packageName + "/raw/signal_pulse"
                     )
                     AlertSound.SILENT -> null
                 }
