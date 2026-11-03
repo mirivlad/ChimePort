@@ -13,6 +13,18 @@ android {
         versionCode = 4
         versionName = "0.4.0-alpha"
     }
+    // Main CI uses an explicit key. PR/local debug builds use default debug signing.
+    signingConfigs {
+        getByName("debug") {
+            val keystore = providers.environmentVariable("CHIMEPORT_SIGNING_KEYSTORE").orNull
+            if (!keystore.isNullOrBlank()) {
+                storeFile = file(keystore)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
     buildTypes {
         release { isMinifyEnabled = false }
     }

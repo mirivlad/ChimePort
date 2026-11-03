@@ -38,3 +38,11 @@ Inbox starts in **Unread**, followed by **All** and a horizontally scrollable ta
 Swipe an unread notification left to mark read. Swipe a read notification right to restore it to Unread. No transient undo snackbar is shown. Both actions persist to server and device SQLite; errors leave the previous state.
 
 **Server update required:** Reverse state uses DELETE /api/v1/messages/{id}/read, which earlier server versions do not support. Update the ChimePort Docker image (back up the data volume first); source tokens and history remain intact.
+
+## Signing incident (2026-11-03)
+
+The actual published alpha-5 and alpha-6 APK signatures are **different**, although the Actions workflow restored a keystore with an identical certificate fingerprint. Gradle was not explicitly bound to that keystore. Android correctly blocked in-place updates; the private signing identities of the already-distributed alpha-5/alpha-6 APKs are not available for reuse.
+
+From the next alpha onward, CI sets an explicit CHIMEPORT_SIGNING_KEYSTORE for Gradle, verifies the **actual output APK** with apksigner, and compares the certificate with a pinned SHA-256 fingerprint. A missing cache now **fails the release build** instead of silently generating a new key. PR validation APKs may have another debug certificate and must not be distributed as upgrades.
+
+The signing key is still held in Actions cache. This is a **temporary alpha-only solution**, not a secure or durable release setup. Before stable releases, migrate a protected signing keystore to GitHub Actions Secrets, not into Git.

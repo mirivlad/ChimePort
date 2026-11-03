@@ -20,23 +20,22 @@ jobs:
         with:
           gradle-version: "8.11.1"
       - name: Restore persistent alpha signing identity
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.android/debug.keystore
           key: chimeport-alpha-debug-signing-v1
-      - name: Create signing identity if not yet cached
+      - name: Require pinned alpha signing identity
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkeypair -keystore ~/.android/debug.keystore \
-              -storepass android -keypass android -alias androiddebugkey \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=ChimePort Alpha Debug,O=ChimePort,C=XX" -noprompt
+          key="$HOME/.android/debug.keystore"
+          if [ ! -f "$key" ]; then
+            echo "::error::The pinned alpha keystore is missing. Refusing to publish an APK with a new certificate."
+            exit 1
           fi
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android \
-            -alias androiddebugkey | grep 'SHA256:' || true
+          echo "CHIMEPORT_SIGNING_KEYSTORE=$key" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$key" -storepass android \
+            -alias androiddebugkey | grep 'SHA256:'
       - name: Install Android SDK
         run: |
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
@@ -53,6 +52,9 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk dist/ChimePort-android-alpha.apk
           cd dist
           sha256sum ChimePort-android-alpha.apk > SHA256SUMS.txt
+      - name: Verify actual distributable APK signing certificate
+        shell: bash
+        run: bash android/scripts/verify-distribution-signature.sh dist/ChimePort-android-alpha.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ChimePort-android-apk
