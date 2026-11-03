@@ -96,3 +96,32 @@ permissions or Do Not Disturb. These preferences are local to this phone (not
 synchronized to the ChimePort server) and are erased for an account if the account
 is removed. No server update is necessary. The APK's signing certificate remains pinned
 and checked before release.
+
+## Android signing: migrate pinned alpha key to GitHub Secrets
+
+All APKs from alpha 8 onward use the same pinned certificate. Rotating the
+private signing key would force an uninstall and wipe Android app-local data.
+The private key currently lives in an expiring Actions cache.
+
+A one-time *manual* GitHub Actions workflow safely migrates the **same**
+keystore to an encrypted repository secret. The owner must explicitly authorize
+this operation:
+
+1. In GitHub create a **short-lived fine-grained PAT**, restricted to
+   **mirivlad/ChimePort**, with **Secrets: Read and Write** permission.
+   Do NOT paste it into chats or code.
+2. In repository Settings → Secrets and variables → Actions, add
+   **CHIMEPORT_SIGNING_MIGRATION_PAT** with that temporary PAT.
+3. From Actions manually run **Migrate existing ChimePort alpha signing key to
+   GitHub Secrets** on the main branch.
+4. The workflow restores the old cache and checks its SHA-256 fingerprint
+   against the public pinned fingerprint before sending an encrypted
+   copy into **CHIMEPORT_ALPHA_KEYSTORE_B64** using GitHub CLI.
+   It never prints or uploads an artifact containing the private key.
+5. Run a normal Android build and ensure the output APK signature check is
+   successful, and that the signing source is the protected secret.
+6. Delete CHIMEPORT_SIGNING_MIGRATION_PAT and revoke that short-lived PAT.
+
+Until then release CI prefers the protected secret when present, falling
+back to the SAME original cache; if neither exists the build fails rather
+than silently rotating certificates. Never commit private key material.

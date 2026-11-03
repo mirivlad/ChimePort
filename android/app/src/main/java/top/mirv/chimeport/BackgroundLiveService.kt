@@ -44,6 +44,15 @@ class BackgroundLiveService : Service() {
             }
         }
 
+        private const val ACTION_RECONNECT = "top.mirv.chimeport.action.RECONNECT"
+
+        fun reconnect(context: Context) {
+            check(enabled(context)) { "Фоновая доставка выключена" }
+            context.startForegroundService(Intent(context, BackgroundLiveService::class.java).apply {
+                action = ACTION_RECONNECT
+            })
+        }
+
         fun disable(context: Context) {
             context.getSharedPreferences("chimeport_preferences", Context.MODE_PRIVATE)
                 .edit().putBoolean("background_live", false).apply()
@@ -93,6 +102,11 @@ class BackgroundLiveService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         running = true
+        ConnectionDiagnostics.serviceStarted(this)
+        if (intent?.action == ACTION_RECONNECT) {
+            // User explicitly requested reconnection; closing the socket wakes listeners.
+            streams.disconnectAll()
+        }
         if (manager?.isActive != true) {
             manager = scope.launch {
                 while (isActive && enabled(this@BackgroundLiveService)) {
@@ -118,17 +132,25 @@ class BackgroundLiveService : Service() {
         var failures = 0
         while (currentCoroutineContext().isActive && enabled(this)) {
             val server = cache.servers().firstOrNull { it.id == id } ?: break
-            if (server.token.isBlank()) break
+            if (server.token.isBlank()) {
+                ConnectionDiagnostics.loginRequired(this, id)
+                break
+            }
+            ConnectionDiagnostics.connecting(this, id)
             try {
                 streams.listen(server,
                     onConnected = {
                         failures = 0
+                        ConnectionDiagnostics.connected(this@BackgroundLiveService, id)
                         // Silent catch-up after a restart or lost connection.
                         ServerSync.refresh(cache, id)
+                        ConnectionDiagnostics.synced(this@BackgroundLiveService, id)
                         ChangeBus.emit()
                     },
                     onMessage = { lastId ->
+                        ConnectionDiagnostics.event(this@BackgroundLiveService, id)
                         val fresh = ServerSync.refresh(cache, id)
+                        ConnectionDiagnostics.synced(this@BackgroundLiveService, id)
                         ChangeBus.emit()
                         // Suppress historical messages and avoid notifying twice for the same ID.
                         fresh.filter { it.readAt == null }.take(12).forEach { notice ->
@@ -139,9 +161,17 @@ class BackgroundLiveService : Service() {
             } catch (stop: CancellationException) {
                 throw stop
             } catch (unauthorized: ApiError) {
-                if (unauthorized.code == 401 || unauthorized.code == 403) break
-            } catch (_: Exception) {
-                // Keep attempting connections while the user-enabled service is alive.
+                if (unauthorized.code == 401 || unauthorized.code == 403) {
+                    ConnectionDiagnostics.loginRequired(this, id)
+                    break
+                }
+                val backoff = (1000L shl (failures + 1).coerceAtMost(5))
+                    .coerceAtMost(30000L)
+                ConnectionDiagnostics.retrying(this, id, backoff, deliveryErrorLabel(unauthorized))
+            } catch (error: Exception) {
+                val backoff = (1000L shl (failures + 1).coerceAtMost(5))
+                    .coerceAtMost(30000L)
+                ConnectionDiagnostics.retrying(this, id, backoff, deliveryErrorLabel(error))
             }
             failures++
             delay((1000L shl failures.coerceAtMost(5)).coerceAtMost(30000L))
@@ -153,6 +183,7 @@ class BackgroundLiveService : Service() {
         streams.disconnectAll()
         scope.cancel()
         jobs.clear()
+        cache.servers().forEach { ConnectionDiagnostics.stopped(this, it.id) }
         ChangeBus.emit()
         super.onDestroy()
     }

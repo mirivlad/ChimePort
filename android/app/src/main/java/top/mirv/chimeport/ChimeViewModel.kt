@@ -71,6 +71,18 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         stopOwnStreams()
     }
 
+    fun reconnectBackground() {
+        if (!BackgroundLiveService.enabled(getApplication())) {
+            mutable.update { it.copy(message = "Включите фоновую доставку.") }
+            return
+        }
+        runCatching { BackgroundLiveService.reconnect(getApplication()) }
+            .onFailure { error ->
+                mutable.update { it.copy(message =
+                    "Не удалось переподключиться: " + describe(error)) }
+            }
+    }
+
     fun setBackgroundLive(enabled: Boolean) {
         if (enabled) {
             try {
@@ -393,6 +405,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         cache.deleteAccount(id)
         AlertProfiles.forgetServer(getApplication(), id, slugs)
         QuietSchedules.forgetServer(getApplication(), id, slugs)
+        ConnectionDiagnostics.forget(getApplication(), id)
         LiveNotifications.forgetServer(getApplication(), id)
         reload()
         ChangeBus.emit()
