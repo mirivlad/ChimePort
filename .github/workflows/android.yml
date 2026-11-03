@@ -23,6 +23,9 @@ jobs:
         run: |
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Run Android unit tests
+        working-directory: android
+        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
       - name: Build debug-signed APK
         working-directory: android
         run: gradle --no-daemon --stacktrace :app:assembleDebug

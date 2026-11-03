@@ -19,4 +19,8 @@ The alpha APK uses Android **debug signing** generated on the runner, not a stab
 5. Add a second HTTPS ChimePort server; verify separate sessions and no mixed messages.
 6. Use light and dark themes, large fonts, bad network/TLS conditions.
 
-No notifications while the app is fully closed yet; this is M2.1 only.
+Foreground SSE listeners keep the feed up to date while the app is open. Newly received live events can also appear in the Android notification shade after POST_NOTIFICATIONS permission is granted. Historical catch-up never generates a flood of old system notifications. There is still no reliable delivery when the app is closed or suspended; that requires a separate background-delivery stage.
+
+## Live event transport
+
+The app opens an authenticated SSE connection per connected server while in the foreground. When the server sends `messages_available`, the client synchronizes history through the existing cursor-based REST API, not through the SSE payload. A reconnect triggers a silent catch-up. Connections close when the application is stopped; transient failures retry with an exponential backoff up to 30 seconds. Connection status is visible in the header and server cards. New *live* events can produce Android system notifications after notification permission is granted; initial history and reconnected backlog stay silent.

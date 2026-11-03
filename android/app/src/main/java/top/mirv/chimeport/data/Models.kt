@@ -43,6 +43,7 @@ data class SessionInfo(val token: String, val username: String, val userId: Long
 data class Page(val items: List<Notice>, val nextCursor: String, val hasMore: Boolean)
 
 enum class Tab { INBOX, CHANNELS, SERVERS, SETTINGS }
+enum class LiveStatus { CONNECTING, CONNECTED, RECONNECTING, LOGIN_REQUIRED }
 enum class ThemeChoice { SYSTEM, LIGHT, DARK }
 
 data class AppState(
@@ -62,5 +63,6 @@ data class AppState(
     val unreadOnly: Boolean = false,
     val search: String = "",
     val addingServer: Boolean = false,
-    val theme: ThemeChoice = ThemeChoice.SYSTEM
+    val theme: ThemeChoice = ThemeChoice.SYSTEM,
+    val liveStatuses: Map<String, LiveStatus> = emptyMap()
 )

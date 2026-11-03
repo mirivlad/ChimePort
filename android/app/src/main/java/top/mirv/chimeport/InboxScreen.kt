@@ -88,7 +88,7 @@ fun InboxScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = Mod
                     Icons.Outlined.MarkEmailUnread,
                     if (state.messages.isEmpty()) "Здесь пока тихо" else "Ничего не найдено",
                     if (state.messages.isEmpty())
-                        "Отправьте уведомление на сервер из скрипта или Home Assistant, затем обновите ленту."
+                        "Отправьте уведомление из скрипта или Home Assistant. Пока приложение открыто, лента обновится сама."
                     else "Попробуйте другой фильтр или поисковый запрос.",
                     if (state.messages.isEmpty()) "Обновить ленту" else "Сбросить фильтры",
                     onAction = {

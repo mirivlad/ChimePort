@@ -15,6 +15,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import top.mirv.chimeport.data.AppState
 import top.mirv.chimeport.data.ServerAccount
+import top.mirv.chimeport.data.LiveStatus
 
 @Composable
 fun ServersScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = Modifier) {
@@ -74,6 +75,20 @@ fun ServersScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = M
                                 Icon(Icons.Outlined.Edit, "Переименовать сервер")
                             }
                         }
+                        val connection = when (state.liveStatuses[server.id]) {
+                            LiveStatus.CONNECTED -> "На связи · события приходят автоматически"
+                            LiveStatus.CONNECTING -> "Подключаемся к потоку событий…"
+                            LiveStatus.RECONNECTING -> "Соединение потеряно · переподключаемся"
+                            LiveStatus.LOGIN_REQUIRED -> "Сессия истекла · войдите снова"
+                            null -> "Сейчас не подключено к потоку"
+                        }
+                        Text(
+                            connection,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (state.liveStatuses[server.id] == LiveStatus.CONNECTED)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Text(
                             "Пользователь: " + server.username,
                             style = MaterialTheme.typography.bodySmall,
