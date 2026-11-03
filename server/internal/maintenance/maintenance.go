@@ -25,24 +25,24 @@ import (
 )
 
 const (
-	FormatVersion = 1
-	SupportedSchema = 2
+	FormatVersion          = 1
+	SupportedSchema        = 2
 	maxDatabaseBytes int64 = 64 << 30
 	maxManifestBytes int64 = 64 << 10
 )
 
 type FileInfo struct {
-	Size int64 `json:"size"`
+	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
 }
 
 type Manifest struct {
-	Format int `json:"format"`
-	CreatedAt string `json:"created_at"`
-	InstanceID string `json:"instance_id"`
-	SchemaVersion int `json:"schema_version"`
-	ImageRef string `json:"image_ref,omitempty"`
-	Files map[string]FileInfo `json:"files"`
+	Format        int                 `json:"format"`
+	CreatedAt     string              `json:"created_at"`
+	InstanceID    string              `json:"instance_id"`
+	SchemaVersion int                 `json:"schema_version"`
+	ImageRef      string              `json:"image_ref,omitempty"`
+	Files         map[string]FileInfo `json:"files"`
 }
 
 func ensureRegular(path string) error {
@@ -311,14 +311,14 @@ func Backup(dataDir, output string) (Manifest, error) {
 		return empty, err
 	}
 	manifest := Manifest{
-		Format: FormatVersion,
-		CreatedAt: time.Now().UTC().Format(time.RFC3339),
-		InstanceID: id,
+		Format:        FormatVersion,
+		CreatedAt:     time.Now().UTC().Format(time.RFC3339),
+		InstanceID:    id,
 		SchemaVersion: schema,
-		ImageRef: os.Getenv("CHIMEPORT_IMAGE_REF"),
+		ImageRef:      os.Getenv("CHIMEPORT_IMAGE_REF"),
 		Files: map[string]FileInfo{
 			"chimeport.db": dbInfo,
-			"token-key": keyInfo,
+			"token-key":    keyInfo,
 		},
 	}
 	info, err := json.MarshalIndent(manifest, "", "  ")
@@ -519,7 +519,7 @@ func Restore(archivePath, emptyDataDir, confirmedInstanceID string) (Manifest, e
 		return empty, fmt.Errorf("instance mismatch: archive belongs to %s", manifest.InstanceID)
 	}
 	marker := filepath.Join(emptyDataDir, ".restore-in-progress")
-	if err := os.WriteFile(marker, []byte(manifest.InstanceID + string(byte(10))), 0600); err != nil {
+	if err := os.WriteFile(marker, []byte(manifest.InstanceID+string(byte(10))), 0600); err != nil {
 		return empty, err
 	}
 	// If interrupted, the marker forces OpenStore to fail rather than use a
