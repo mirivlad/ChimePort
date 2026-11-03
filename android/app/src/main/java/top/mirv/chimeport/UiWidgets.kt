@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -153,5 +154,59 @@ fun SectionTitle(text: String, description: String? = null) {
             Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+
+/** Left swipe: mark unread as read. Right swipe: restore a read notification. */
+@Composable
+fun SwipeNoticeCard(
+    message: Notice,
+    showServer: Boolean,
+    onOpen: () -> Unit,
+    onChangeRead: (Boolean) -> Unit
+) {
+    val isRead = message.readAt != null
+    val swipeState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.EndToStart -> if (!isRead) onChangeRead(true)
+                SwipeToDismissBoxValue.StartToEnd -> if (isRead) onChangeRead(false)
+                SwipeToDismissBoxValue.Settled -> Unit
+            }
+            false // The server decides when the local read state changes.
+        },
+        positionalThreshold = { distance -> distance * 0.30f }
+    )
+    SwipeToDismissBox(
+        state = swipeState,
+        enableDismissFromStartToEnd = isRead,
+        enableDismissFromEndToStart = !isRead,
+        backgroundContent = {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(
+                        if (isRead) MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.primaryContainer,
+                        RoundedCornerShape(18.dp)
+                    )
+                    .padding(horizontal = 22.dp),
+                contentAlignment = if (isRead) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        if (isRead) Icons.Outlined.MarkEmailUnread else Icons.Outlined.DoneAll,
+                        contentDescription = null
+                    )
+                    Text(if (isRead) "В непрочитанные" else "Прочитано",
+                        style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    ) {
+        NoticeCard(message, onOpen, showServer)
     }
 }

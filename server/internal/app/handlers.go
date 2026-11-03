@@ -713,3 +713,30 @@ func (a *App) markRead(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, map[string]bool{"read": true})
 }
+
+func (a *App) markUnread(w http.ResponseWriter, r *http.Request) {
+	p, ok := a.authorize(w, r)
+	if !ok {
+		return
+	}
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		failure(w, 404, "not_found", "Message not found")
+		return
+	}
+	var found int
+	err = a.Store.DB.QueryRowContext(r.Context(), "SELECT 1 FROM messages m JOIN channels c ON c.id=m.channel_id WHERE m.id=? AND c.owner_id=?", id, p.ID).Scan(&found)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			failure(w, 404, "not_found", "Message not found")
+		} else {
+			a.err(w, err)
+		}
+		return
+	}
+	if _, err := a.Store.DB.ExecContext(r.Context(), "DELETE FROM read_states WHERE user_id=? AND message_id=?", p.ID, id); err != nil {
+		a.err(w, err)
+		return
+	}
+	respond(w, 200, map[string]bool{"read": false})
+}

@@ -118,7 +118,7 @@ private fun Dashboard(state: AppState, model: ChimeViewModel) {
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 NavItem(Tab.INBOX, "Входящие", state.tab, Icons.Outlined.Notifications, model)
-                NavItem(Tab.CHANNELS, "Каналы", state.tab, Icons.Outlined.GridView, model)
+                NavItem(Tab.SEARCH, "Поиск", state.tab, Icons.Outlined.Search, model)
                 NavItem(Tab.SERVERS, "Серверы", state.tab, Icons.Outlined.Dns, model)
                 NavItem(Tab.SETTINGS, "Настройки", state.tab, Icons.Outlined.Tune, model)
             }
@@ -155,7 +155,7 @@ private fun Dashboard(state: AppState, model: ChimeViewModel) {
             }
             when (state.tab) {
                 Tab.INBOX -> InboxScreen(state, model, Modifier.weight(1f))
-                Tab.CHANNELS -> ChannelsScreen(state, model, Modifier.weight(1f))
+                Tab.SEARCH -> SearchScreen(state, model, Modifier.weight(1f))
                 Tab.SERVERS -> ServersScreen(state, model, Modifier.weight(1f))
                 Tab.SETTINGS -> SettingsScreen(state, model, Modifier.weight(1f))
             }

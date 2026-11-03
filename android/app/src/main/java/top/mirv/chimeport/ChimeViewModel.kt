@@ -176,15 +176,39 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openTab(tab: Tab) { mutable.update { it.copy(tab = tab) } }
-    fun filterServer(id: String?) { mutable.update { it.copy(selectedServer = id, selectedChannel = null, tab = Tab.INBOX) } }
+    fun selectInbox(mode: InboxMode) {
+        mutable.update { it.copy(
+            tab = Tab.INBOX, inboxMode = mode,
+            selectedChannel = null, selectedServer = null
+        ) }
+    }
+    fun filterServer(id: String?) {
+        mutable.update { it.copy(
+            selectedServer = id, selectedChannel = null,
+            inboxMode = InboxMode.ALL, tab = Tab.INBOX
+        ) }
+    }
     fun filterChannel(channel: ChannelInfo?) {
         mutable.update {
-            it.copy(selectedChannel = channel?.let { c -> c.serverId + "::" + c.slug },
-                selectedServer = channel?.serverId, tab = Tab.INBOX)
+            it.copy(
+                selectedChannel = channel?.let { c -> c.serverId + "::" + c.slug },
+                selectedServer = channel?.serverId,
+                inboxMode = if (channel == null) InboxMode.ALL else InboxMode.CHANNEL,
+                tab = Tab.INBOX
+            )
         }
     }
-    fun unreadOnly(enabled: Boolean) { mutable.update { it.copy(unreadOnly = enabled) } }
     fun search(text: String) { mutable.update { it.copy(search = text) } }
+    fun searchServer(id: String?) { mutable.update {
+        it.copy(searchServer = id, searchChannel = null)
+    } }
+    fun searchChannel(id: String?) { mutable.update { it.copy(searchChannel = id) } }
+    fun searchRead(filter: ReadFilter) { mutable.update { it.copy(searchRead = filter) } }
+    fun searchPriority(value: String?) { mutable.update { it.copy(searchPriority = value) } }
+    fun resetSearch() { mutable.update { it.copy(
+        search = "", searchServer = null, searchChannel = null,
+        searchRead = ReadFilter.ALL, searchPriority = null
+    ) } }
     fun dismissMessage() { mutable.update { it.copy(message = null) } }
     fun openAdd() {
         mutable.update { it.copy(addingServer = true, probed = null, probedOrigin = "", loginError = null) }
@@ -279,15 +303,33 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun markRead(notice: Notice) {
+    private val changingRead = mutableSetOf<String>()
+
+    fun markRead(notice: Notice) = setReadState(notice, true)
+    fun markUnread(notice: Notice) = setReadState(notice, false)
+
+    fun setReadState(notice: Notice, shouldRead: Boolean) {
         val account = cache.servers().firstOrNull { it.id == notice.serverId } ?: return
+        if (!changingRead.add(notice.key)) return
         viewModelScope.launch {
-            val result = runCatching { withContext(Dispatchers.IO) {
-                Api.read(account, notice.id)
-                cache.markRead(notice.serverId, notice.id)
-            } }
-            result.onSuccess { reload() }
-                .onFailure { e -> mutable.update { it.copy(message = "Не удалось отметить прочитанным: " + describe(e)) } }
+            try {
+                withContext(Dispatchers.IO) {
+                    if (shouldRead) {
+                        Api.read(account, notice.id)
+                        cache.markRead(notice.serverId, notice.id)
+                    } else {
+                        Api.unread(account, notice.id)
+                        cache.markUnread(notice.serverId, notice.id)
+                    }
+                }
+                reload()
+                ChangeBus.emit()
+            } catch (error: Exception) {
+                mutable.update { it.copy(message =
+                    "Не удалось изменить статус уведомления: " + describe(error)) }
+            } finally {
+                changingRead.remove(notice.key)
+            }
         }
     }
 

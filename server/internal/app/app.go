@@ -89,6 +89,7 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/messages", a.publish)
 	mux.HandleFunc("GET /api/v1/messages", a.history)
 	mux.HandleFunc("POST /api/v1/messages/{id}/read", a.markRead)
+	mux.HandleFunc("DELETE /api/v1/messages/{id}/read", a.markUnread)
 	mux.HandleFunc("GET /api/v1/events", a.events)
 	mux.HandleFunc("GET /", a.web)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

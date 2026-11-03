@@ -62,3 +62,10 @@
 ## Не делаем пока
 
 Web Push, сложную систему разрешений, редактирование серверных API-токенов с Android, обязательный Firebase, масштабную реорганизацию серверной админки. Это не препятствует выпуску хорошего первого клиента.
+
+## UX update for alpha 6
+
+- Inbox contains horizontally scrollable tabs: **Unread**, **All**, and channels. For matching channel names on different servers, also show their server labels.
+- Bottom navigation: **Inbox**, **Search**, **Servers**, **Settings**. Search offers filters by server, channel, status and priority.
+- Swipe an unread message left to mark it read. Swipe a read message right to move it back to unread. Never show a temporary undo snackbar: the reverse action is always available from All or Search.
+- Both mutations are checked for channel ownership by the server. Do not locally change the read state if the API operation fails.

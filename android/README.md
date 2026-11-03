@@ -30,3 +30,11 @@ The app opens an authenticated SSE connection per connected server while in the 
 The app offers opt-in background monitoring using a visible ongoing foreground-service notification (Android specialUse type). The service keeps authenticated SSE subscriptions and synchronizes to SQLite. Swipe-away may continue receiving notifications on some devices, but force-stop, battery-saving restrictions, connectivity and OS process management can interrupt it; this is not guaranteed urgent alert delivery.
 
 For alpha builds the GitHub workflow now caches one debug signing identity, so future runs should install over each other **while GitHub's signing cache survives**. This first build necessarily uses a new identity versus alpha 4: one more uninstall may be needed. GitHub cache eviction can still invalidate the signature. Before shipping a stable release, store a dedicated private signing key in encrypted GitHub Secrets and verify certificate continuity; do not rely on the cache or publish a private keystore in the repository.
+
+## Alpha 6: inbox, search and reversible read state
+
+Inbox starts in **Unread**, followed by **All** and a horizontally scrollable tab for each channel. Bottom navigation shows **Search** instead of a separate Channels screen. Search covers downloaded local history and filters by server, channel, read state and priority.
+
+Swipe an unread notification left to mark read. Swipe a read notification right to restore it to Unread. No transient undo snackbar is shown. Both actions persist to server and device SQLite; errors leave the previous state.
+
+**Server update required:** Reverse state uses DELETE /api/v1/messages/{id}/read, which earlier server versions do not support. Update the ChimePort Docker image (back up the data volume first); source tokens and history remain intact.
