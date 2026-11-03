@@ -13,6 +13,7 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import java.time.LocalTime
 import top.mirv.chimeport.data.Notice
 
 /**
@@ -42,7 +43,16 @@ object LiveNotifications {
     private fun eventChannel(context: Context, notice: Notice): String {
         val manager = context.getSystemService(NotificationManager::class.java)
         val profile = AlertProfiles.get(context, notice.serverId, notice.channel)
-        val lane = alertLane(notice.priority, profile.level)
+        // Evaluate wall-clock time on every event, including after time zone changes.
+        // The dedicated quiet lane has neither sound nor vibration.
+        val localTime = LocalTime.now()
+        val minuteOfDay = localTime.hour * 60 + localTime.minute
+        val quiet = shouldQuietNotification(
+            notice.priority,
+            QuietSchedules.effective(context, notice.serverId, notice.channel),
+            minuteOfDay
+        )
+        val lane = if (quiet) AlertLane.QUIET else alertLane(notice.priority, profile.level)
         val osImportance = when (lane) {
             AlertLane.HIGH -> NotificationManager.IMPORTANCE_HIGH
             AlertLane.NORMAL -> NotificationManager.IMPORTANCE_DEFAULT

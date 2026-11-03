@@ -206,6 +206,23 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(message = "Не удалось сохранить оповещения: " + describe(error)) }
         }
     }
+
+    fun configureQuiet(target: QuietTarget, rule: QuietRule) {
+        try {
+            when (target.scope) {
+                QuietScope.GLOBAL -> QuietSchedules.setGlobal(getApplication(), rule)
+                QuietScope.SERVER -> QuietSchedules.setServer(getApplication(), target.serverId, rule)
+                QuietScope.CHANNEL -> QuietSchedules.setChannel(
+                    getApplication(), target.serverId, target.channelSlug, rule
+                )
+            }
+            mutable.update { it.copy(quietSettingsRevision = it.quietSettingsRevision + 1) }
+        } catch (error: Exception) {
+            mutable.update {
+                it.copy(message = "Не удалось сохранить тихие часы: " + describe(error))
+            }
+        }
+    }
     fun selectInbox(mode: InboxMode) {
         mutable.update { it.copy(
             tab = Tab.INBOX, inboxMode = mode,
@@ -375,6 +392,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         val slugs = cache.channels().filter { it.serverId == id }.map { it.slug }
         cache.deleteAccount(id)
         AlertProfiles.forgetServer(getApplication(), id, slugs)
+        QuietSchedules.forgetServer(getApplication(), id, slugs)
         LiveNotifications.forgetServer(getApplication(), id)
         reload()
         ChangeBus.emit()
