@@ -22,8 +22,8 @@ jobs:
           gradle-version: "8.11.1"
       - name: Install platform
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
       - name: Build installable debug APK
         working-directory: android
         run: gradle --no-daemon --stacktrace :app:assembleDebug
