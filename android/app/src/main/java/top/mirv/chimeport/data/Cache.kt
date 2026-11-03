@@ -166,6 +166,14 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
     }
 
     @Synchronized
+    fun markUnread(serverId: String, id: String) {
+        writableDatabase.execSQL(
+            "UPDATE messages SET read_at=NULL WHERE server_id=? AND id=?",
+            arrayOf(serverId, id)
+        )
+    }
+
+    @Synchronized
     fun channels(): List<ChannelInfo> {
         val result = mutableListOf<ChannelInfo>()
         readableDatabase.rawQuery("""

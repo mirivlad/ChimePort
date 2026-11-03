@@ -42,7 +42,9 @@ data class InstanceInfo(val id: String, val name: String)
 data class SessionInfo(val token: String, val username: String, val userId: Long)
 data class Page(val items: List<Notice>, val nextCursor: String, val hasMore: Boolean)
 
-enum class Tab { INBOX, CHANNELS, SERVERS, SETTINGS }
+enum class Tab { INBOX, SEARCH, SERVERS, SETTINGS }
+enum class InboxMode { UNREAD, ALL, CHANNEL }
+enum class ReadFilter { ALL, UNREAD, READ }
 enum class LiveStatus { CONNECTING, CONNECTED, RECONNECTING, LOGIN_REQUIRED }
 enum class ThemeChoice { SYSTEM, LIGHT, DARK }
 
@@ -60,8 +62,12 @@ data class AppState(
     val tab: Tab = Tab.INBOX,
     val selectedServer: String? = null,
     val selectedChannel: String? = null,
-    val unreadOnly: Boolean = false,
+    val inboxMode: InboxMode = InboxMode.UNREAD,
     val search: String = "",
+    val searchServer: String? = null,
+    val searchChannel: String? = null,
+    val searchRead: ReadFilter = ReadFilter.ALL,
+    val searchPriority: String? = null,
     val addingServer: Boolean = false,
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
     val backgroundLive: Boolean = false,

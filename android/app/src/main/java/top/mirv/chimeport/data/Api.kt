@@ -25,17 +25,17 @@ object Api {
         return URI("https", null, uri.host, uri.port, null, null, null).toASCIIString().trimEnd('/')
     }
 
-    private fun call(origin: String, path: String, token: String? = null, post: JSONObject? = null): JSONObject {
+    private fun call(origin: String, path: String, token: String? = null, post: JSONObject? = null, method: String = if (post == null) "GET" else "POST"): JSONObject {
         val url = URL(origin + path)
         val conn = url.openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 12_000
             conn.readTimeout = 20_000
             conn.instanceFollowRedirects = false
+            conn.requestMethod = method
             conn.setRequestProperty("Accept", "application/json")
             if (token != null) conn.setRequestProperty("Authorization", "Bearer $token")
             if (post != null) {
-                conn.requestMethod = "POST"
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 conn.outputStream.use { it.write(post.toString().toByteArray(StandardCharsets.UTF_8)) }
@@ -115,6 +115,11 @@ object Api {
     fun read(server: ServerAccount, id: String) {
         require(id.all { it.isDigit() }) { "Неверный идентификатор сообщения" }
         call(server.origin, "/api/v1/messages/$id/read", server.token, JSONObject())
+    }
+
+    fun unread(server: ServerAccount, id: String) {
+        require(id.isNotEmpty() && id.all { it.isDigit() }) { "Неверный идентификатор сообщения" }
+        call(server.origin, "/api/v1/messages/$id/read", server.token, method = "DELETE")
     }
 
     fun logout(server: ServerAccount) {
