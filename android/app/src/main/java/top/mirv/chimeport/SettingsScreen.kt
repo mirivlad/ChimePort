@@ -107,7 +107,7 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
         ) {
             Row(Modifier.fillMaxWidth().padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Activity, null,
+                Icon(Icons.Outlined.Sync, null,
                     tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(13.dp))
                 Column(Modifier.weight(1f)) {

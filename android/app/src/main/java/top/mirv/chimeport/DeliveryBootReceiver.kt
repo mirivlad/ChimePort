@@ -3,8 +3,6 @@ package top.mirv.chimeport
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.app.ForegroundServiceStartNotAllowedException
 
 /**
  * BOOT_COMPLETED is delivered after user unlock; credentials live in standard
@@ -29,12 +27,11 @@ class DeliveryBootReceiver : BroadcastReceiver() {
                     "Запуск после перезагрузки запрошен"
                 else "Перезапуск после обновления запрошен"
             )
-        } catch (_: ForegroundServiceStartNotAllowedException) {
-            ConnectionDiagnostics.bootResult(context, "Android запретил запуск из фона")
         } catch (_: SecurityException) {
             ConnectionDiagnostics.bootResult(context, "Нет разрешения на фоновый сервис")
         } catch (_: IllegalStateException) {
-            ConnectionDiagnostics.bootResult(context, "Запуск временно ограничен Android")
+            // Includes ForegroundServiceStartNotAllowedException (Android 12+).
+            ConnectionDiagnostics.bootResult(context, "Android ограничил запуск из фона")
         }
     }
 }
