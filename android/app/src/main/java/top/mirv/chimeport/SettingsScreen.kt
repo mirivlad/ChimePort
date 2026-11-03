@@ -1,11 +1,17 @@
 package top.mirv.chimeport
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +37,40 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                 ThemeOption("Как в системе", ThemeChoice.SYSTEM, state.theme, model)
                 ThemeOption("Светлая", ThemeChoice.LIGHT, state.theme, model)
                 ThemeOption("Тёмная", ThemeChoice.DARK, state.theme, model)
+            }
+        }
+        Spacer(Modifier.height(15.dp))
+        val context = LocalContext.current
+        var notificationsAllowed by remember {
+            mutableStateOf(
+                Build.VERSION.SDK_INT < 33 ||
+                    context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            )
+        }
+        val requestPermission = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted -> notificationsAllowed = granted }
+        ElevatedCard(
+            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                Text("Системные уведомления", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (notificationsAllowed)
+                        "Разрешены. Новые события во время открытого приложения появляются в шторке Android."
+                    else "Не разрешены. Можно включить, чтобы новые события появлялись в шторке.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (!notificationsAllowed && Build.VERSION.SDK_INT >= 33) {
+                    Spacer(Modifier.height(10.dp))
+                    Button(onClick = { requestPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }) {
+                        Text("Разрешить уведомления")
+                    }
+                }
             }
         }
         Spacer(Modifier.height(15.dp))
@@ -60,9 +100,10 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                 )
                 HorizontalDivider()
                 Text(
-                    "В этой версии уведомления обновляются, когда приложение открыто, " +
-                        "либо по нажатию «Обновить». Звуки и доставка в фоне появятся " +
-                        "в следующем этапе. Это пока не замена тревожной сигнализации.",
+                    "Пока приложение открыто, оно слушает новые события через защищённое " +
+                        "соединение и автоматически обновляет ленту. Новые события могут " +
+                        "появляться в шторке Android при разрешении ОС. После закрытия " +
+                        "приложения фоновой доставки пока нет. Это не аварийная сигнализация.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

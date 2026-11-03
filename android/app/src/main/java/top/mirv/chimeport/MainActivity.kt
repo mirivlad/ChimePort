@@ -1,6 +1,13 @@
 package top.mirv.chimeport
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -46,6 +53,7 @@ private val darkColors = darkColorScheme(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LiveNotifications.ensureChannel(this)
         setContent {
             val model: ChimeViewModel = viewModel()
             val state by model.state.collectAsState()
@@ -66,12 +74,35 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ChimeApp(model: ChimeViewModel, state: AppState) {
     val owner = LocalLifecycleOwner.current
-    DisposableEffect(owner, state.servers.size) {
+    val context = LocalContext.current
+    val requestNotifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Permission status is also available in Android system settings. */ }
+    LaunchedEffect(state.servers.isNotEmpty()) {
+        val prefs = context.getSharedPreferences("chimeport_preferences", Context.MODE_PRIVATE)
+        if (state.servers.isNotEmpty() && Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            !prefs.getBoolean("notification_permission_prompted", false)
+        ) {
+            prefs.edit().putBoolean("notification_permission_prompted", true).apply()
+            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    DisposableEffect(owner, model) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && state.servers.isNotEmpty()) model.refresh()
+            when (event) {
+                Lifecycle.Event.ON_START -> model.startRealtime()
+                Lifecycle.Event.ON_STOP -> model.stopRealtime()
+                Lifecycle.Event.ON_RESUME -> model.refresh()
+                else -> Unit
+            }
         }
         owner.lifecycle.addObserver(observer)
-        onDispose { owner.lifecycle.removeObserver(observer) }
+        if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) model.startRealtime()
+        onDispose {
+            owner.lifecycle.removeObserver(observer)
+            model.stopRealtime()
+        }
     }
     if (state.servers.isEmpty() || state.addingServer) {
         WelcomeScreen(state, model)
@@ -149,7 +180,19 @@ private fun ChimeTopBar(state: AppState, model: ChimeViewModel) {
             Column(Modifier.weight(1f)) {
                 Text("ChimePort", style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
-                Text("Свои сигналы. Свой сервер.",
+                val connected = state.servers.count {
+                    state.liveStatuses[it.id] == LiveStatus.CONNECTED
+                }
+                val liveLabel = when {
+                    state.servers.isEmpty() -> "Свои сигналы. Свой сервер."
+                    connected == state.servers.size -> "На связи · обновления автоматически"
+                    state.liveStatuses.values.any { it == LiveStatus.LOGIN_REQUIRED } ->
+                        "Требуется повторный вход"
+                    state.liveStatuses.values.any { it == LiveStatus.RECONNECTING } ->
+                        "Нет связи · переподключаемся"
+                    else -> "Подключение к серверу…"
+                }
+                Text(liveLabel,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall)
             }
