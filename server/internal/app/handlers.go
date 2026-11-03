@@ -296,10 +296,10 @@ func (a *App) listTokens(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		allowedChannels := []string{}
-        if allowedSlugs != "" {
-            allowedChannels = strings.Split(allowedSlugs, ",")
-        }
-        items = append(items, map[string]any{"id": id, "prefix": prefix, "label": label, "description": description, "expires_at": nullable(expires), "revoked_at": nullable(revoked), "created_at": created, "allowed_channels": allowedChannels})
+		if allowedSlugs != "" {
+			allowedChannels = strings.Split(allowedSlugs, ",")
+		}
+		items = append(items, map[string]any{"id": id, "prefix": prefix, "label": label, "description": description, "expires_at": nullable(expires), "revoked_at": nullable(revoked), "created_at": created, "allowed_channels": allowedChannels})
 	}
 	if err := rows.Err(); err != nil {
 		a.err(w, err)
