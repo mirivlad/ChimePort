@@ -48,8 +48,8 @@ object LiveNotifications {
             AlertLane.NORMAL -> NotificationManager.IMPORTANCE_DEFAULT
             AlertLane.QUIET -> NotificationManager.IMPORTANCE_LOW
         }
-        val group = AlertProfiles.groupId(notice.serverId)
-        manager.createNotificationChannelGroup(NotificationChannelGroup(group, notice.serverLabel))
+        val serverGroupId = AlertProfiles.groupId(notice.serverId)
+        manager.createNotificationChannelGroup(NotificationChannelGroup(serverGroupId, notice.serverLabel))
         val channelId = AlertProfiles.channelId(
             notice.serverId, notice.channel, profile.revision, lane
         )
@@ -64,7 +64,7 @@ object LiveNotifications {
                 channelId, notice.channelName + " · " + laneLabel, osImportance
             ).apply {
                 description = "Сервер " + notice.serverLabel + " · " + notice.channelName
-                this.group = group
+                this.group = serverGroupId
                 enableVibration(profile.vibrate && lane != AlertLane.QUIET)
                 val sound: Uri? = if (lane == AlertLane.QUIET) null else when (profile.sound) {
                     AlertSound.SYSTEM -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -157,7 +157,6 @@ object LiveNotifications {
             .setGroupSummary(true)
             .setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN)
             .setOnlyAlertOnce(true)
-            .setSilent(true)
             .build()
         manager.notify(tag, SUMMARY_ID, summary)
     }
