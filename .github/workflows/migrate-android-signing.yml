@@ -1,0 +1,52 @@
+name: Migrate existing ChimePort alpha signing key to GitHub Secrets
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  migrate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Restore original signed-alpha keystore from legacy Actions cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: chimeport-alpha-debug-signing-v1
+      - name: Verify exact installed alpha certificate, never regenerate
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$HOME/.android/debug.keystore"
+          test -s "$key" || { echo "::error::The original alpha key is missing"; exit 1; }
+          expected="$(tr -d '[:space:]' < android/signing/expected-alpha-sha256.txt)"
+          actual="$(keytool -list -v -keystore "$key" -storepass android \
+              -alias androiddebugkey | sed -n 's/.*SHA256: //p' | head -n1 | \
+              tr -d ':' | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Private key does not match the published alpha certificate; migration blocked."
+            exit 1
+          fi
+          echo "Original alpha certificate verified: $actual"
+      - name: Encrypt and transfer keystore to protected repository secret
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.CHIMEPORT_SIGNING_MIGRATION_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Set Actions secret CHIMEPORT_SIGNING_MIGRATION_PAT to a short-lived fine-grained PAT with Secrets write permission for this repository."
+            exit 1
+          fi
+          # GitHub CLI encrypts with the repository's public key before upload.
+          # The private key and base64 never appear in logs, artifacts, or git.
+          base64 -w0 "$HOME/.android/debug.keystore" | \
+            gh secret set CHIMEPORT_ALPHA_KEYSTORE_B64 --repo "$GITHUB_REPOSITORY" --app actions
+          echo "Original alpha signing identity copied into encrypted GitHub Actions Secret."
+          echo "Remove CHIMEPORT_SIGNING_MIGRATION_PAT after verifying the next regular Android build."

@@ -26,8 +26,13 @@ import top.mirv.chimeport.data.ThemeChoice
 fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = Modifier) {
     var alertDetails by remember { mutableStateOf(false) }
     var quietDetails by remember { mutableStateOf(false) }
-    BackHandler(enabled = alertDetails || quietDetails) {
-        if (quietDetails) quietDetails = false else alertDetails = false
+    var deliveryDetails by remember { mutableStateOf(false) }
+    BackHandler(enabled = alertDetails || quietDetails || deliveryDetails) {
+        when {
+            deliveryDetails -> deliveryDetails = false
+            quietDetails -> quietDetails = false
+            else -> alertDetails = false
+        }
     }
     if (alertDetails) {
         AlertSettingsScreen(state, model, onBack = { alertDetails = false }, modifier = modifier)
@@ -35,6 +40,11 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
     }
     if (quietDetails) {
         QuietHoursScreen(state, model, onBack = { quietDetails = false }, modifier = modifier)
+        return
+    }
+    if (deliveryDetails) {
+        DeliveryDiagnosticsScreen(state, model, onBack = { deliveryDetails = false },
+            modifier = modifier)
         return
     }
     Column(
@@ -80,10 +90,35 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                     Switch(checked = state.backgroundLive,
                         onCheckedChange = model::setBackgroundLive)
                 }
-                Text("Принудительная остановка, ограничения прошивки или отключённый интернет " +
-                    "могут прервать доставку. После перезапуска телефона откройте приложение.",
+                Text("После перезагрузки ChimePort попытается возобновить подключение. " +
+                    "Принудительная остановка, ограничения прошивки или отсутствие интернета " +
+                    "по-прежнему могут прервать доставку.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(15.dp))
+        ElevatedCard(
+            onClick = { deliveryDetails = true },
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Sync, null,
+                    tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Диагностика доставки", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Соединения, последние события, автозапуск и энергосбережение",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, "Открыть диагностику")
             }
         }
         Spacer(Modifier.height(15.dp))
@@ -186,7 +221,7 @@ fun SettingsScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = 
                     Text("Об этом приложении", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold)
                 }
-                Text("ChimePort · Android alpha 0.6.0",
+                Text("ChimePort · Android alpha 0.7.0",
                     style = MaterialTheme.typography.bodyMedium)
                 Text(
                     "Все серверы независимы, сообщения хранятся у владельца сервера, " +
