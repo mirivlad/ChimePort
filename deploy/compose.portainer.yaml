@@ -1,0 +1,27 @@
+# Portainer Git stack: refs/heads/main, deploy/compose.portainer.yaml
+# The official experiment image is published from main by GitHub Actions.
+# For a reverse proxy running on the host, forward to 127.0.0.1:8080.
+# For a proxy in Docker, add a shared external Docker network.
+services:
+  chimeport:
+    image: ghcr.io/mirivlad/chimeport:main
+    restart: unless-stopped
+    environment:
+      CHIMEPORT_DATA_DIR: /data
+      CHIMEPORT_LISTEN_ADDR: ":8080"
+      CHIMEPORT_PUBLIC_URL: ${CHIMEPORT_PUBLIC_URL:-https://chime.mirv.top}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - chimeport_data:/data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/chimeport", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  chimeport_data:

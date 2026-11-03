@@ -1,0 +1,109 @@
+# ChimePort: быстрый запуск в Portainer
+
+> Экспериментальный серверный прототип. Работают веб-панель, админское создание пользователей, личные каналы, источники и токены, отправка и история. **Android, PWA и Web Push не реализованы**. Прежде чем открывать инстанс в Интернет, проверьте настройки прокси и авторизации.
+
+## 1. Подготовка адреса и Docker-образа
+
+Для примера используем `chime.mirv.top` (точка между `chime` и `mirv`, не запятая). Создайте DNS A-запись (и AAAA, только если IPv6 настроен) на публичный IP вашего reverse proxy. Обеспечьте HTTPS на внешнем Caddy/Nginx/Traefik.
+
+Образ `ghcr.io/mirivlad/chimeport:main` автоматически собирается workflow [Publish experimental Docker image](../.github/workflows/publish-image.yml) при изменениях `server/**` или запуске вручную. Дождитесь **успешного** run на ветке `main`.
+
+**GHCR может первоначально создать пакет приватным**, даже если репозиторий публичный. Если Portainer сообщает `unauthorized` при `pull`, в GitHub откройте профиль → Packages → `chimeport` → Package settings → Change visibility → Public. Иначе подключите в Portainer GHCR registry с собственным GitHub token, имеющим `read:packages`. Не предполагайте, что образ доступен анонимно, пока это не проверено.
+
+## 2. Stack в Portainer
+
+В **Portainer → Stacks → Add stack → Git repository** укажите:
+
+| Параметр | Значение |
+| --- | --- |
+| Name | `chimeport` |
+| Repository URL | `https://github.com/mirivlad/ChimePort.git` |
+| Repository reference | `refs/heads/main` |
+| Compose path | `deploy/compose.portainer.yaml` |
+| Environment variable | `CHIMEPORT_PUBLIC_URL=https://chime.mirv.top` |
+
+Нажмите **Deploy the stack**. Файл использует уже собранный образ; никакого `build:` в Portainer нет.
+
+Данные хранятся в именованном Docker volume, подключённом как `/data`. Если имя стека `chimeport`, Docker Compose обычно называет volume `chimeport_chimeport_data`; точное имя проверьте в Portainer → Volumes. Контейнер работает не от root (UID 10001).
+
+**Сеть:** по умолчанию порт доступен только на `127.0.0.1:8080` Docker-хоста. Это правильно для Caddy/Nginx, запущенного на хосте. Если reverse proxy тоже контейнер, подключите оба сервиса к одной пользовательской внешней Docker-сети (добавьте её в Compose и к контейнеру proxy), а upstream укажите `http://chimeport:8080`. Не открывайте 8080 наружу как замену HTTPS.
+
+Например, для Caddy на хосте:
+
+```caddyfile
+chime.mirv.top {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Внешний TLS должен быть валиден. Не указывайте URL с портом `8080` или завершающим `/` в `CHIMEPORT_PUBLIC_URL`.
+
+## 3. Создание первого администратора
+
+Регистрация отключена. Сначала нужно один раз создать администратора в запущенном контейнере.
+
+В **Portainer → Containers → ChimePort container → Console** откройте `/bin/sh` (обычно пользователь `10001`). В интерактивной консоли вставьте:
+
+```sh
+umask 077
+printf 'Введите пароль администратора (минимум 12 символов): '
+stty -echo
+IFS= read -r ADMIN_PASSWORD
+stty echo
+printf '\n'
+printf '%s' "$ADMIN_PASSWORD" > /data/.bootstrap-admin-password
+unset ADMIN_PASSWORD
+/usr/local/bin/chimeport bootstrap --username admin --password-file /data/.bootstrap-admin-password
+rm -f /data/.bootstrap-admin-password
+```
+
+Команда `stty -echo` скрывает ввод пароля в интерактивном терминале. Если консоль не поддерживает TTY, используйте полноценный терминал `docker exec -it`. Успех: `Administrator created. Bootstrap is now disabled.` Команда bootstrap намеренно отказывается создавать второго администратора, если аккаунт уже есть. После запуска удалите временный парольный файл (последняя команда).
+
+## 4. Веб-панель, пользователи, каналы и токены
+
+1. Откройте `https://chime.mirv.top`; войдите как `admin` с заданным паролем.
+2. Раздел **Пользователи** (виден только администратору): создайте логин, пароль длиной от 12 символов, роль `user` или `admin`. Публичной регистрации нет.
+3. Пользователь под своей учётной записью открывает **Каналы**, создаёт, например, код `home/security`, название `Безопасность дома` и описание.
+4. В разделе **Источники и API-токены** создайте источник `Home Assistant`, затем нажмите **Новый токен**, задайте название, описание и ID разрешённых каналов. ID показываются в запросе при создании.
+5. Полный токен можно скопировать сразу и **повторно показать** позднее через **Токены → Показать/Копировать**. Его можно отозвать.
+
+**Ограничение текущей версии:** пользователь пока не может самостоятельно сменить пароль, а администратор — сбросить его в UI. Поэтому не используйте общие временные пароли и не рассчитывайте на функцию «сменить при первом входе». UI пока содержит только создание и список пользователей.
+
+Каналы в прототипе личные: администратор не получает автоматического доступа к истории других пользователей. Для отправки в канал конкретного пользователя тот должен создать свой источник и токен.
+
+## 5. Проверка API и Home Assistant
+
+Проверка доступности через HTTPS:
+
+```sh
+curl -fsS https://chime.mirv.top/health/live
+curl -fsS https://chime.mirv.top/api/v1/instance
+```
+
+Публикация в уже созданный канал (замените токен на свой):
+
+```sh
+CHIMEPORT_TOKEN='cp_t_ВАШ_ТОКЕН'
+curl --fail-with-body -sS \
+  -X POST https://chime.mirv.top/api/v1/messages \
+  -H "Authorization: Bearer $CHIMEPORT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"channel":"home/security","title":"Дверь","body":"Дверь открыта","priority":"high"}'
+unset CHIMEPORT_TOKEN
+```
+
+Откройте вкладку **Входящие** в своём аккаунте: сообщение должно появиться. Если канал не указан в списке разрешённых для токена, сервер отклонит запрос. Для Home Assistant можно использовать REST-команду POST по тому же URL с Bearer-токеном; не помещайте секрет в репозиторий или открытые логи.
+
+## 6. Резервирование и обновление
+
+Сохранить необходимо **весь volume `/data`**: там SQLite `chimeport.db` (с возможными WAL/SHM-файлами), шифровальный ключ `token-key` и данные идентификации сервера. Для простого согласованного архива остановите контейнер в Portainer, скопируйте содержимое volume и затем запустите его обратно. Не копируйте только `chimeport.db` во время работы: в режиме WAL часть транзакций может находиться в `-wal`.
+
+При обновлении: сначала резервная копия, затем **Re-pull image and redeploy** в Portainer (ветка `main` даёт изменяемый, а не фиксированный тег). Проверяйте `/health/live` и тестовую отправку. Не используйте прототип для критических аварийных сигналов.
+
+## 7. Частые проблемы
+
+- `unauthorized` при загрузке образа — GHCR package visibility или credentials.
+- `403 invalid_origin` на входе — внешний адрес и `CHIMEPORT_PUBLIC_URL` должны совпадать **точно** (`https://chime.mirv.top`, без слеша).
+- `502` у прокси — проверьте сеть/upstream и контейнерный healthcheck.
+- `bootstrap already completed` — первый администратор уже существует.
+- Не приходят Android/PWA push — клиент и Web Push ещё не реализованы; пока есть только веб-панель/SSE.
