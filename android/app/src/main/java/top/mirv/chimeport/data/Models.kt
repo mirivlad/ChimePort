@@ -71,5 +71,7 @@ data class AppState(
     val addingServer: Boolean = false,
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
     val backgroundLive: Boolean = false,
-    val liveStatuses: Map<String, LiveStatus> = emptyMap()
+    val liveStatuses: Map<String, LiveStatus> = emptyMap(),
+    val alertSettingsRevision: Int = 0,
+    val openNotificationKey: String? = null
 )

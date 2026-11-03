@@ -5,6 +5,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -51,11 +54,21 @@ private val darkColors = darkColorScheme(
 )
 
 class MainActivity : ComponentActivity() {
+    private val notificationIntent = MutableStateFlow<Pair<String, String>?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        notificationIntent.value = extractNotice(intent)
         LiveNotifications.ensureChannel(this)
         setContent {
             val model: ChimeViewModel = viewModel()
+            val target by notificationIntent.collectAsState()
+            LaunchedEffect(target) {
+                target?.let { (serverId, messageId) ->
+                    model.openNotification(serverId, messageId)
+                    notificationIntent.value = null
+                }
+            }
             val state by model.state.collectAsState()
             val dark = when (state.theme) {
                 ThemeChoice.DARK -> true
@@ -68,6 +81,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        notificationIntent.value = extractNotice(intent)
+    }
+
+    private fun extractNotice(intent: Intent?): Pair<String, String>? {
+        if (intent?.action != Intent.ACTION_VIEW) return null
+        val uri: Uri = intent.data ?: return null
+        if (uri.scheme != "chimeport" || uri.authority != "notice") return null
+        val parts = uri.pathSegments
+        if (parts.size != 2 || parts[0].isBlank() ||
+            parts[1].isEmpty() || !parts[1].all { it.isDigit() }) return null
+        return parts[0] to parts[1]
     }
 }
 
@@ -158,6 +187,14 @@ private fun Dashboard(state: AppState, model: ChimeViewModel) {
                 Tab.SEARCH -> SearchScreen(state, model, Modifier.weight(1f))
                 Tab.SERVERS -> ServersScreen(state, model, Modifier.weight(1f))
                 Tab.SETTINGS -> SettingsScreen(state, model, Modifier.weight(1f))
+            }
+        }
+    }
+    state.openNotificationKey?.let { key ->
+        state.messages.firstOrNull { it.key == key }?.let { notice ->
+            NoticeDetail(notice, onDismiss = model::closeNotification) { read ->
+                model.setReadState(notice, read)
+                model.closeNotification()
             }
         }
     }

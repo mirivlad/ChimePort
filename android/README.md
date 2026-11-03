@@ -55,3 +55,14 @@ a read notification to Unread. The card moved but the next gesture did nothing.
 Updated callback references and a gesture-state reset after every read-state change
 prevent this; a JVM regression test covers multiple unread/read/unread cycles.
 Android-only change; no server update necessary. CI checks the signed output APK.
+
+## Alpha 10: channel alerts and message deep links
+
+- Settings → **Звуки и каналы**: edit the sound, vibration, and importance for each channel on each connected server. Sound choices: system default, original ChimePort chime, triple signal, and silence. A preview button plays each sound.
+- Android notification groups separate server accounts. Each channel is subdivided into urgent/high, normal, and low priority lanes. Per-channel importance can instead force high importance or quiet delivery. OS Do Not Disturb is never bypassed.
+- Android NotificationChannel settings are immutable once created. Each explicit profile change creates a new versioned channel ID; old records may remain in Android settings for notifications already posted.
+- Several active messages from the same ChimePort server receive a silent group summary. Tapping an individual notification opens its message detail, even when the app was already open.
+- This release remains a best-effort SSE delivery application. Optional foreground service still presents a persistent OS notification and may be interrupted by battery restrictions or force-stop.
+- No server-side changes for alpha 10. The APK signing fingerprint is verified before publishing.
+
+The two original ChimePort notification tones were synthesized for the application, with no external music dependency.

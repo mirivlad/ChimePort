@@ -131,7 +131,7 @@ class BackgroundLiveService : Service() {
                         val fresh = ServerSync.refresh(cache, id)
                         ChangeBus.emit()
                         // Suppress historical messages and avoid notifying twice for the same ID.
-                        fresh.firstOrNull { it.id == lastId }?.let { notice ->
+                        fresh.filter { it.readAt == null }.take(12).forEach { notice ->
                             LiveNotifications.show(this@BackgroundLiveService, notice)
                         }
                     }
