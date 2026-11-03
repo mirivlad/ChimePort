@@ -325,8 +325,7 @@ func Backup(dataDir, output string) (Manifest, error) {
 	if err != nil {
 		return empty, err
 	}
-	info = append(info, '
-')
+	info = append(info, byte(10))
 	temp, err := os.CreateTemp(outputDir, ".chimeport-backup-*.tmp")
 	if err != nil {
 		return empty, err
