@@ -15,4 +15,6 @@
 
 11. [Пошаговая установка в Portainer](11-PORTAINER-QUICKSTART.md)
 
+12. [Android: первая испытательная версия с полноценным UX](12-ANDROID-PILOT.md)
+
 Начать знакомство с проектом лучше с [README](../README.md). Разработчикам также читать [AGENTS.md](../AGENTS.md).
