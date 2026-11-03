@@ -1,0 +1,29 @@
+name: Server CI
+on:
+  push:
+    branches: [main]
+    paths: ["server/**", ".github/workflows/server-ci.yml"]
+  pull_request:
+    paths: ["server/**", ".github/workflows/server-ci.yml"]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache: false
+      - name: Resolve modules
+        run: go mod tidy
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+      - name: Test
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: CGO_ENABLED=0 go build ./cmd/chimeport

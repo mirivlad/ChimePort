@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChimePort</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><strong class="brand">ChimePort</strong><span class="tagline">Your alerts. Your server.</span><span id="identity"></span><button id="logout" hidden>Выйти</button></header>
+<main>
+<section id="login-panel" class="panel narrow">
+ <h1>Войти на свой сервер</h1><p class="hint">Учётные записи создаёт администратор. Публичной регистрации нет.</p>
+ <form id="login-form"><label>Логин<input name="username" autocomplete="username" required></label>
+ <label>Пароль<input type="password" name="password" autocomplete="current-password" required></label>
+ <button type="submit">Войти</button></form>
+</section>
+<div id="app-panel" hidden>
+ <nav aria-label="Разделы"><button class="tab active" data-tab="inbox">Входящие</button><button class="tab" data-tab="channels">Каналы</button><button class="tab" data-tab="sources">Источники и токены</button><button class="tab" id="admin-tab" data-tab="admin" hidden>Пользователи</button></nav>
+ <section id="inbox" class="panel view"><div class="heading"><h1>Уведомления</h1><button id="refresh">Обновить</button></div>
+ <div class="filters"><label>Канал<select id="filter-channel"><option value="">Все каналы</option></select></label></div>
+ <div id="messages" class="messages"></div><button id="load-more" hidden>Показать ещё</button></section>
+ <section id="channels" class="panel view" hidden><h1>Каналы</h1>
+ <form id="channel-form" class="inline-form"><label>Код канала (например, home/security)<input name="slug" required pattern="[a-z0-9][a-z0-9_/-]*"></label>
+ <label>Название<input name="name" required></label><label>Описание<input name="description"></label><button>Создать канал</button></form><div id="channel-list"></div></section>
+ <section id="sources" class="panel view" hidden><h1>Источники и API-токены</h1>
+ <form id="source-form" class="inline-form"><label>Название источника<input name="name" required placeholder="Home Assistant"></label>
+ <label>Описание<input name="description"></label><button>Создать источник</button></form><div id="source-list"></div></section>
+ <section id="admin" class="panel view" hidden><h1>Пользователи</h1><p class="hint">Создать логин и временный пароль, который пользователь должен сменить в следующем выпуске.</p>
+ <form id="user-form" class="inline-form"><label>Логин<input name="username" minlength="3" required></label><label>Пароль (от 12 знаков)<input name="password" type="password" minlength="12" required></label>
+ <label>Роль<select name="role"><option value="user">Пользователь</option><option value="admin">Администратор</option></select></label><button>Создать</button></form><div id="user-list"></div></section>
+</div>
+<div id="status" role="status" aria-live="polite"></div>
+</main>
+<template id="token-dialog-template"><dialog class="secret-dialog"><h2>Токен создан</h2><p>Скопируйте его сейчас — полный токен больше не показывается.</p><code class="secret"></code><button class="copy">Копировать</button><button class="close">Закрыть</button></dialog></template>
+<script src="/app.js" defer></script>
+</body></html>
