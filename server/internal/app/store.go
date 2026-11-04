@@ -74,19 +74,39 @@ func migrate(db *sql.DB) error {
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version > 2 {
+	if version > 3 {
 		return fmt.Errorf("unsupported database schema %d", version)
 	}
-	if version == 2 {
+	if version == 3 {
 		return nil
 	}
 	if version == 1 {
-		_, err := db.Exec("ALTER TABLE source_tokens ADD COLUMN secret_encrypted TEXT NOT NULL DEFAULT ''")
-		if err != nil {
+		// Retain the existing v1-to-v2 migration before applying v3.
+		if _, err := db.Exec("ALTER TABLE source_tokens ADD COLUMN secret_encrypted TEXT NOT NULL DEFAULT ''"); err != nil {
 			return fmt.Errorf("migration v2: %w", err)
 		}
-		_, err = db.Exec("PRAGMA user_version=2")
-		return err
+		if _, err := db.Exec("PRAGMA user_version=2"); err != nil {
+			return err
+		}
+		version = 2
+	}
+	if version == 2 {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		for _, q := range []string{
+			"CREATE INDEX messages_created_at_idx ON messages(created_at,id)",
+			"CREATE TABLE publication_windows (token_id INTEGER PRIMARY KEY REFERENCES source_tokens(id) ON DELETE CASCADE, minute INTEGER NOT NULL, accepted INTEGER NOT NULL)",
+			"CREATE TABLE retention_watermarks (owner_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, last_deleted_id INTEGER NOT NULL)",
+			"PRAGMA user_version=3",
+		} {
+			if _, err := tx.Exec(q); err != nil {
+				return fmt.Errorf("migration v3: %w", err)
+			}
+		}
+		return tx.Commit()
 	}
 	tx, err := db.Begin()
 	if err != nil {
@@ -103,13 +123,16 @@ func migrate(db *sql.DB) error {
 		`CREATE TABLE token_channels (token_id INTEGER NOT NULL REFERENCES source_tokens(id) ON DELETE CASCADE, channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE, PRIMARY KEY(token_id,channel_id))`,
 		`CREATE TABLE messages (id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE, source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT NOT NULL, priority TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL)`,
 		`CREATE INDEX messages_channel_id_idx ON messages(channel_id,id)`,
+		`CREATE INDEX messages_created_at_idx ON messages(created_at,id)`,
 		`CREATE TABLE idempotency (token_id INTEGER NOT NULL REFERENCES source_tokens(id) ON DELETE CASCADE, idem_key TEXT NOT NULL, payload_hash TEXT NOT NULL, message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE, PRIMARY KEY(token_id,idem_key))`,
 		`CREATE TABLE read_states (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE, read_at TEXT NOT NULL, PRIMARY KEY(user_id,message_id))`,
-		`PRAGMA user_version=2`,
+		`CREATE TABLE publication_windows (token_id INTEGER PRIMARY KEY REFERENCES source_tokens(id) ON DELETE CASCADE, minute INTEGER NOT NULL, accepted INTEGER NOT NULL)`,
+		`CREATE TABLE retention_watermarks (owner_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, last_deleted_id INTEGER NOT NULL)`,
+		`PRAGMA user_version=3`,
 	}
 	for _, q := range statements {
 		if _, err := tx.Exec(q); err != nil {
-			return fmt.Errorf("migration v1: %w", err)
+			return fmt.Errorf("migration v3 initial: %w", err)
 		}
 	}
 	return tx.Commit()
