@@ -1,7 +1,7 @@
 'use strict';
 
 // All text returned by the API is rendered with textContent, never innerHTML.
-const state = { me: null, channels: [], sources: [], messages: [], cursor: '', hasMore: false, stream: null, tokenSource: null, editingToken: null };
+const state = { me: null, channels: [], sources: [], messages: [], cursor: '', hasMore: false, stream: null, tokenSource: null, editingToken: null, resetUser: null };
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => {
   const node = document.createElement(tag);
@@ -42,6 +42,7 @@ function setAuth(user) {
   $('login-panel').hidden = Boolean(user);
   $('app-panel').hidden = !user;
   $('logout').hidden = !user;
+  $('change-password').hidden = !user;
   $('identity').textContent = user ? `${user.username} · ${user.role === 'admin' ? 'администратор' : 'пользователь'}` : '';
   $('admin-tab').hidden = !user || user.role !== 'admin';
 }
@@ -450,7 +451,28 @@ async function renderUsers() {
       const icon = el('div', user.username.slice(0, 1).toUpperCase(), 'item-icon');
       const info = el('div', undefined, 'item-body');
       info.append(el('h3', user.username), el('p', user.role === 'admin' ? 'Администратор' : 'Пользователь', 'meta'));
-      row.append(icon, info, el('span', user.disabled ? 'Отключён' : 'Активен', user.disabled ? 'tag dim' : 'tag ok'));
+      const actions = el('div', undefined, 'actions');
+      if (user.id !== state.me.id) {
+        actions.append(
+          button('Сбросить пароль', () => {
+            state.resetUser = user;
+            $('reset-password-title').textContent = 'Пароль пользователя «' + user.username + '»';
+            $('reset-password-form').reset();
+            $('reset-password-dialog').showModal();
+          }),
+          button(user.disabled ? 'Разблокировать' : 'Заблокировать', async () => {
+            const word = user.disabled ? 'Разблокировать' : 'Заблокировать';
+            if (!confirm(word + ' пользователя «' + user.username + '»?' +
+              (user.disabled ? '' : ' Его сеансы завершатся, а токены источников перестанут работать.'))) return;
+            try {
+              await api('/admin/users/' + user.id, { method: 'PATCH', body: JSON.stringify({ disabled: !user.disabled }) });
+              await renderUsers();
+              notice(word + ': ' + user.username);
+            } catch (err) { notice('Не удалось изменить состояние: ' + err.message, true); }
+          }, user.disabled ? 'secondary' : 'danger-button')
+        );
+      }
+      row.append(icon, info, el('span', user.disabled ? 'Отключён' : 'Активен', user.disabled ? 'tag dim' : 'tag ok'), actions);
       list.append(row);
     }
   } catch (err) { notice('Не удалось загрузить пользователей: ' + err.message, true); }
@@ -466,6 +488,57 @@ $('login-form').addEventListener('submit', async (event) => {
     await api('/auth/login', { method: 'POST', body: JSON.stringify({ ...formData(event.target), mode: 'web' }) });
     event.target.reset(); notice(''); await connect();
   } catch (err) { notice('Ошибка входа: ' + err.message, true); }
+});
+$('change-password').addEventListener('click', () => {
+  $('password-form').reset();
+  $('password-dialog').showModal();
+});
+$('cancel-password').addEventListener('click', () => $('password-dialog').close());
+$('close-password').addEventListener('click', () => $('password-dialog').close());
+$('password-dialog').addEventListener('close', () => $('password-form').reset());
+$('password-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const current = form.elements.current_password.value;
+  const next = form.elements.new_password.value;
+  if (next !== form.elements.repeat_password.value) {
+    notice('Новые пароли не совпадают', true);
+    return;
+  }
+  try {
+    await api('/me/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: current, new_password: next })
+    });
+    $('password-dialog').close();
+    state.stream?.close(); state.stream = null; state.messages = [];
+    setAuth(null);
+    notice('Пароль изменён. Войдите заново на всех устройствах.');
+  } catch (err) { notice('Не удалось изменить пароль: ' + err.message, true); }
+});
+$('cancel-reset-password').addEventListener('click', () => $('reset-password-dialog').close());
+$('close-reset-password').addEventListener('click', () => $('reset-password-dialog').close());
+$('reset-password-dialog').addEventListener('close', () => {
+  $('reset-password-form').reset();
+  state.resetUser = null;
+});
+$('reset-password-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const target = state.resetUser;
+  if (!target) return;
+  const form = event.target;
+  const next = form.elements.new_password.value;
+  if (next !== form.elements.repeat_password.value) {
+    notice('Пароли не совпадают', true);
+    return;
+  }
+  try {
+    await api('/admin/users/' + target.id + '/reset-password', {
+      method: 'POST', body: JSON.stringify({ new_password: next })
+    });
+    $('reset-password-dialog').close();
+    notice('Пароль для «' + target.username + '» сброшен. Все его сеансы завершены.');
+  } catch (err) { notice('Не удалось сбросить пароль: ' + err.message, true); }
 });
 $('logout').addEventListener('click', async () => {
   try { await api('/auth/logout', { method: 'POST' }); } catch (err) { notice(err.message, true); }

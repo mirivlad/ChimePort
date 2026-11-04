@@ -111,8 +111,8 @@ func (a *App) admin(w http.ResponseWriter, r *http.Request) (Principal, bool) {
 
 func (s *Store) Bootstrap(username, password string) error {
 	username = strings.TrimSpace(strings.ToLower(username))
-	if !usernamePattern.MatchString(username) || len(password) < 12 {
-		return errors.New("username must be 3-32 lower-case characters; password must contain at least 12 characters")
+	if !usernamePattern.MatchString(username) || !validAccountPassword(password) {
+		return errors.New("username must be 3-32 lower-case characters; password must contain 12-128 bytes")
 	}
 	hash, err := hashPassword(password)
 	if err != nil {

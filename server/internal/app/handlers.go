@@ -138,8 +138,8 @@ func (a *App) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Username = strings.TrimSpace(strings.ToLower(in.Username))
-	if !usernamePattern.MatchString(in.Username) || len(in.Password) < 12 {
-		failure(w, 400, "invalid_user", "Username must contain 3-32 lowercase characters; password at least 12")
+	if !usernamePattern.MatchString(in.Username) || !validAccountPassword(in.Password) {
+		failure(w, 400, "invalid_user", "Username must contain 3-32 lowercase characters; password 12-128 bytes")
 		return
 	}
 	if in.Role == "" {
