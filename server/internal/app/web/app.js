@@ -1,7 +1,7 @@
 'use strict';
 
 // All text returned by the API is rendered with textContent, never innerHTML.
-const state = { me: null, channels: [], sources: [], messages: [], cursor: '', hasMore: false, stream: null, tokenSource: null, editingToken: null, resetUser: null };
+const state = { me: null, channels: [], sources: [], messages: [], cursor: '', hasMore: false, stream: null, tokenSource: null, editingToken: null, resetUser: null, editingEntity: null };
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => {
   const node = document.createElement(tag);
@@ -115,6 +115,7 @@ function renderChannels() {
     body.append(urlRow);
     const actions = el('div', undefined, 'actions');
     actions.append(
+      button('Изменить', () => openEntityEditor('channels', channel)),
       button('Токены', () => showChannelTokens(channel)),
       button('Уведомления', () => { filter.value = channel.slug; showTab('inbox'); renderMessages(); })
     );
@@ -204,6 +205,7 @@ function renderSources() {
     info.append(el('h3', src.name), el('p', src.description || 'Приложение или скрипт, который отправляет уведомления.', 'hint'));
     const actions = el('div', undefined, 'actions');
     actions.append(
+      button('Изменить', () => openEntityEditor('sources', src)),
       button('Токены и права', () => showTokens(src)),
       button('+ Создать токен', () => openTokenDialog(src), 'primary')
     );
@@ -440,6 +442,18 @@ function startStream() {
   state.stream.addEventListener('messages_available', fetchNew);
   state.stream.addEventListener('open', fetchNew);
 }
+function openEntityEditor(kind, item) {
+  state.editingEntity = { kind, id: item.id };
+  const form = $('edit-entity-form');
+  form.reset();
+  form.elements.name.value = item.name;
+  form.elements.description.value = item.description || '';
+  $('edit-entity-heading').textContent = kind === 'channels' ? 'Изменить канал' : 'Изменить источник';
+  $('edit-entity-hint').textContent = kind === 'channels'
+    ? 'Технический адрес (' + item.slug + ') не меняется — интеграции и токены продолжат работать.'
+    : 'Токены и разрешения источника сохраняются без изменений.';
+  $('edit-entity-dialog').showModal();
+}
 async function renderUsers() {
   if (state.me?.role !== 'admin') return;
   try {
@@ -488,6 +502,27 @@ $('login-form').addEventListener('submit', async (event) => {
     await api('/auth/login', { method: 'POST', body: JSON.stringify({ ...formData(event.target), mode: 'web' }) });
     event.target.reset(); notice(''); await connect();
   } catch (err) { notice('Ошибка входа: ' + err.message, true); }
+});
+$('cancel-edit-entity').addEventListener('click', () => $('edit-entity-dialog').close());
+$('close-edit-entity').addEventListener('click', () => $('edit-entity-dialog').close());
+$('edit-entity-dialog').addEventListener('close', () => {
+  $('edit-entity-form').reset();
+  state.editingEntity = null;
+});
+$('edit-entity-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const selection = state.editingEntity;
+  if (!selection) return;
+  const name = event.target.elements.name.value.trim();
+  const description = event.target.elements.description.value;
+  try {
+    await api('/' + selection.kind + '/' + selection.id, {
+      method: 'PATCH', body: JSON.stringify({ name, description })
+    });
+    $('edit-entity-dialog').close();
+    await refreshAll();
+    notice('Изменения сохранены');
+  } catch (err) { notice('Не удалось сохранить: ' + err.message, true); }
 });
 $('change-password').addEventListener('click', () => {
   $('password-form').reset();

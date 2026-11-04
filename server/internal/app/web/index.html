@@ -96,6 +96,15 @@
       <div class="form-actions"><button type="button" id="cancel-reset-password" class="secondary">Отмена</button><button type="submit" class="danger-button">Сбросить пароль</button></div>
     </form>
   </dialog>
+  <dialog id="edit-entity-dialog" class="modal">
+    <form id="edit-entity-form" class="form-stack">
+      <div class="section-heading"><h2 id="edit-entity-heading">Изменить название</h2><button id="close-edit-entity" type="button" class="quiet" aria-label="Закрыть окно">✕</button></div>
+      <label>Название<input name="name" maxlength="100" required></label>
+      <label>Описание <span class="optional">необязательно</span><textarea name="description" maxlength="1000" rows="3"></textarea></label>
+      <p id="edit-entity-hint" class="small-note"></p>
+      <div class="form-actions"><button id="cancel-edit-entity" type="button" class="secondary">Отмена</button><button type="submit">Сохранить изменения</button></div>
+    </form>
+  </dialog>
   <dialog id="token-dialog" class="modal">
     <form id="token-form" class="form-stack">
       <div class="section-heading"><div><div class="eyebrow">ИСТОЧНИК</div><h2 id="token-heading">Новый токен</h2></div><button type="button" id="close-token" class="quiet" aria-label="Закрыть окно">✕</button></div>
