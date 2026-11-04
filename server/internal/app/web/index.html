@@ -11,7 +11,7 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark" aria-hidden="true">C</span><span>ChimePort <small>Личный центр уведомлений</small></span></div>
-    <div class="account"><a class="examples-link" href="/examples">Примеры отправки</a><span id="identity"></span><button id="logout" type="button" class="quiet" hidden>Выйти</button></div>
+    <div class="account"><a class="examples-link" href="/examples">Примеры отправки</a><span id="identity"></span><button id="change-password" type="button" class="quiet" hidden>Сменить пароль</button><button id="logout" type="button" class="quiet" hidden>Выйти</button></div>
   </header>
   <main class="layout">
     <section id="login-panel" class="panel login-card">
@@ -69,7 +69,7 @@
           <div class="page-heading"><div><div class="eyebrow">УПРАВЛЕНИЕ СЕРВЕРОМ</div><h1>Пользователи</h1><p class="hint">Создавайте учётные записи и выбирайте их роль.</p></div><button id="new-user" type="button">+ Добавить пользователя</button></div>
           <div id="user-form-panel" class="panel form-panel" hidden>
             <div class="section-heading"><h2>Новый пользователь</h2><button id="close-user" type="button" class="quiet" aria-label="Закрыть форму">✕</button></div>
-            <form id="user-form" class="form-stack"><label>Логин<input name="username" minlength="3" maxlength="32" pattern="[a-z][a-z0-9_-]*" autocomplete="off" required placeholder="ivan"></label><label>Пароль (не менее 12 символов)<input name="password" type="password" minlength="12" autocomplete="new-password" required></label><label>Роль<select name="role"><option value="user">Пользователь</option><option value="admin">Администратор</option></select></label><p class="small-note">В этой версии смена и сброс пароля ещё не реализованы. Используйте индивидуальный пароль, не временный.</p><div class="form-actions"><button type="button" id="cancel-user" class="secondary">Отмена</button><button type="submit">Создать пользователя</button></div></form>
+            <form id="user-form" class="form-stack"><label>Логин<input name="username" minlength="3" maxlength="32" pattern="[a-z][a-z0-9_-]*" autocomplete="off" required placeholder="ivan"></label><label>Пароль (не менее 12 символов)<input name="password" type="password" minlength="12" autocomplete="new-password" required></label><label>Роль<select name="role"><option value="user">Пользователь</option><option value="admin">Администратор</option></select></label><p class="small-note">Пароль можно сменить самостоятельно или сбросить администратором. После сброса все сеансы пользователя завершатся.</p><div class="form-actions"><button type="button" id="cancel-user" class="secondary">Отмена</button><button type="submit">Создать пользователя</button></div></form>
           </div>
           <div id="user-list" class="card-list"></div>
         </section>
@@ -77,6 +77,25 @@
     </div>
     <div id="status" role="status" aria-live="polite"></div>
   </main>
+  <dialog id="password-dialog" class="modal">
+    <form id="password-form" class="form-stack">
+      <div class="section-heading"><h2>Сменить мой пароль</h2><button id="close-password" type="button" class="quiet" aria-label="Закрыть окно">✕</button></div>
+      <p class="hint">После смены пароля все сеансы, включая Android, будут завершены. Войдите с новым паролем на каждом устройстве.</p>
+      <label>Текущий пароль<input name="current_password" type="password" required autocomplete="current-password"></label>
+      <label>Новый пароль (12–128 байт)<input name="new_password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+      <label>Повторите новый пароль<input name="repeat_password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+      <div class="form-actions"><button type="button" id="cancel-password" class="secondary">Отмена</button><button type="submit">Сменить пароль</button></div>
+    </form>
+  </dialog>
+  <dialog id="reset-password-dialog" class="modal">
+    <form id="reset-password-form" class="form-stack">
+      <div class="section-heading"><h2 id="reset-password-title">Сброс пароля</h2><button id="close-reset-password" type="button" class="quiet" aria-label="Закрыть окно">✕</button></div>
+      <p class="hint">Все текущие сеансы пользователя, включая Android, будут завершены. Пароль сообщите пользователю по защищённому каналу.</p>
+      <label>Новый пароль (12–128 байт)<input name="new_password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+      <label>Повторите пароль<input name="repeat_password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+      <div class="form-actions"><button type="button" id="cancel-reset-password" class="secondary">Отмена</button><button type="submit" class="danger-button">Сбросить пароль</button></div>
+    </form>
+  </dialog>
   <dialog id="token-dialog" class="modal">
     <form id="token-form" class="form-stack">
       <div class="section-heading"><div><div class="eyebrow">ИСТОЧНИК</div><h2 id="token-heading">Новый токен</h2></div><button type="button" id="close-token" class="quiet" aria-label="Закрыть окно">✕</button></div>

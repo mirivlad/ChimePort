@@ -69,6 +69,7 @@ func (a *App) Handler() http.Handler {
 	})
 	mux.HandleFunc("POST /api/v1/auth/login", a.login)
 	mux.HandleFunc("POST /api/v1/auth/logout", a.logout)
+	mux.HandleFunc("POST /api/v1/me/change-password", a.changePassword)
 	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, r *http.Request) {
 		p, ok := a.authorize(w, r)
 		if ok {
@@ -77,6 +78,8 @@ func (a *App) Handler() http.Handler {
 	})
 	mux.HandleFunc("GET /api/v1/admin/users", a.listUsers)
 	mux.HandleFunc("POST /api/v1/admin/users", a.createUser)
+	mux.HandleFunc("POST /api/v1/admin/users/{id}/reset-password", a.resetUserPassword)
+	mux.HandleFunc("PATCH /api/v1/admin/users/{id}", a.setUserDisabled)
 	mux.HandleFunc("GET /api/v1/channels", a.listChannels)
 	mux.HandleFunc("POST /api/v1/channels", a.createChannel)
 	mux.HandleFunc("GET /api/v1/sources", a.listSources)
