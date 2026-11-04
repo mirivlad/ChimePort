@@ -59,7 +59,7 @@ func (a *App) editSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Name string `json:"name"`
+		Name        string `json:"name"`
 		Description string `json:"description"`
 	}
 	if !decode(w, r, &in) {
