@@ -23,13 +23,14 @@ import (
 var webAssets embed.FS
 
 type App struct {
-	Store        *Store
-	PublicURL    string
-	secure       bool
-	cursorSecret string
-	limiter      loginLimiter
-	mu           sync.Mutex
-	listeners    map[int64]map[chan int64]struct{}
+	Store                *Store
+	PublicURL            string
+	PublishRatePerMinute int
+	secure               bool
+	cursorSecret         string
+	limiter              loginLimiter
+	mu                   sync.Mutex
+	listeners            map[int64]map[chan int64]struct{}
 }
 
 func New(store *Store, publicURL string) (*App, error) {
@@ -51,7 +52,7 @@ func New(store *Store, publicURL string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{Store: store, PublicURL: publicURL, secure: u.Scheme == "https", cursorSecret: secret, listeners: map[int64]map[chan int64]struct{}{}}, nil
+	return &App{Store: store, PublicURL: publicURL, PublishRatePerMinute: 120, secure: u.Scheme == "https", cursorSecret: secret, listeners: map[int64]map[chan int64]struct{}{}}, nil
 }
 
 func (a *App) Handler() http.Handler {

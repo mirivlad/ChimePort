@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -110,9 +111,14 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		api.PublishRatePerMinute = nonNegativeEnv("CHIMEPORT_PUBLISH_RATE_PER_MINUTE", 120, 100000)
+		retentionDays := nonNegativeEnv("CHIMEPORT_RETENTION_DAYS", 30, 36500)
 		server := &http.Server{Addr: getenv("CHIMEPORT_LISTEN_ADDR", ":8080"), Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 20 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 * 1024}
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 		defer stop()
+		if retentionDays > 0 {
+			go retentionWorker(ctx, store, retentionDays)
+		}
 		go func() {
 			<-ctx.Done()
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -142,4 +148,60 @@ func getenv(key, otherwise string) string {
 		return value
 	}
 	return otherwise
+}
+
+// nonNegativeEnv rejects bad configuration rather than silently disabling safeguards.
+func nonNegativeEnv(name string, fallback, max int) int {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 || n > max {
+		log.Fatalf("%s must be an integer from 0 to %d", name, max)
+	}
+	return n
+}
+
+// Small transactions allow API writes between cleanup batches. The cleanup also
+// runs at startup, without delaying readiness or requiring another container.
+func retentionWorker(ctx context.Context, store *app.Store, days int) {
+	run := func() {
+		total := 0
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			n, err := store.PruneExpired(ctx, days, 200)
+			if err != nil {
+				if ctx.Err() == nil {
+					slog.Error("Retention cleanup failed", "error", err)
+				}
+				return
+			}
+			total += n
+			if n < 200 {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(20 * time.Millisecond):
+			}
+		}
+		if total > 0 {
+			slog.Info("Expired messages pruned", "deleted", total, "retention_days", days)
+		}
+	}
+	run()
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
 }

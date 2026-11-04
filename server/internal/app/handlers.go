@@ -608,6 +608,16 @@ func (a *App) publish(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	retryAfter, err := a.consumePublishQuota(r.Context(), tx, tokenID)
+	if err != nil {
+		a.err(w, err)
+		return
+	}
+	if retryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		failure(w, 429, "rate_limited", "Source token publish rate exceeded")
+		return
+	}
 	created := now()
 	result, err := tx.Exec("INSERT INTO messages(channel_id,source_id,title,body,priority,url,tags,created_at) VALUES(?,?,?,?,?,?,?,?)", channelID, sourceID, in.Title, in.Body, in.Priority, in.URL, string(canonicalTags(in.Tags)), created)
 	if err != nil {
@@ -659,6 +669,7 @@ func (a *App) history(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	requestedAfter := last
 	rows, err := a.Store.DB.QueryContext(r.Context(), `SELECT m.id,c.id,c.slug,s.name,m.title,m.body,m.priority,m.url,m.tags,m.created_at,rs.read_at FROM messages m JOIN channels c ON c.id=m.channel_id JOIN sources s ON s.id=m.source_id LEFT JOIN read_states rs ON rs.message_id=m.id AND rs.user_id=? WHERE c.owner_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, p.ID, p.ID, last, limit+1)
 	if err != nil {
 		a.err(w, err)
@@ -688,7 +699,18 @@ func (a *App) history(w http.ResponseWriter, r *http.Request) {
 		a.err(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"items": items, "next_cursor": a.cursor(p.ID, last), "has_more": more, "retention_gap": false})
+	rows.Close()
+	retentionGap := false
+	if r.URL.Query().Get("after") != "" {
+		var watermark int64
+		if err := a.Store.DB.QueryRowContext(r.Context(), "SELECT last_deleted_id FROM retention_watermarks WHERE owner_id=?", p.ID).Scan(&watermark); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			a.err(w, err)
+			return
+		} else if err == nil {
+			retentionGap = requestedAfter < watermark
+		}
+	}
+	respond(w, 200, map[string]any{"items": items, "next_cursor": a.cursor(p.ID, last), "has_more": more, "retention_gap": retentionGap})
 }
 func (a *App) markRead(w http.ResponseWriter, r *http.Request) {
 	p, ok := a.authorize(w, r)

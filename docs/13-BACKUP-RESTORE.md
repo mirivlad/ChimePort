@@ -56,7 +56,7 @@ sh deploy/scripts/chimeport-backup.sh
 
 Пример вывода:
 ~~~text
-Backup verified: /backups/chimeport-20261104T033000Z.tar.gz (instance=... schema=2)
+Backup verified: /backups/chimeport-20261104T033000Z.tar.gz (instance=... schema=3)
 Verified backup: /srv/chimeport/backups/chimeport-20261104T033000Z.tar.gz
 ~~~
 

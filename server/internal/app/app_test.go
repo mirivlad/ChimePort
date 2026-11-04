@@ -15,6 +15,7 @@ import (
 
 type harness struct {
 	store  *Store
+	api    *App
 	server *httptest.Server
 	tokens map[string]string
 	dir    string
@@ -38,7 +39,7 @@ func setup(t *testing.T) *harness {
 	}
 	handler = api.Handler()
 	t.Cleanup(func() { ts.Close(); store.DB.Close() })
-	return &harness{store: store, server: ts, tokens: map[string]string{}, dir: dir}
+	return &harness{store: store, api: api, server: ts, tokens: map[string]string{}, dir: dir}
 }
 func (h *harness) req(t *testing.T, method, path, user string, payload any, headers map[string]string) (int, map[string]any) {
 	t.Helper()

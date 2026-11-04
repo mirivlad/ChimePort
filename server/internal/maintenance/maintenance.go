@@ -26,7 +26,7 @@ import (
 
 const (
 	FormatVersion          = 1
-	SupportedSchema        = 2
+	SupportedSchema        = 3
 	maxDatabaseBytes int64 = 64 << 30
 	maxManifestBytes int64 = 64 << 10
 )
@@ -129,7 +129,7 @@ func verifyDatabase(path string, key []byte) (string, int, error) {
 	if instanceID == "" {
 		return "", 0, errors.New("empty instance ID")
 	}
-	if version == 2 {
+	if version >= 2 {
 		var ciphertext string
 		err = db.QueryRow("SELECT secret_encrypted FROM source_tokens WHERE secret_encrypted<>'' LIMIT 1").Scan(&ciphertext)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
