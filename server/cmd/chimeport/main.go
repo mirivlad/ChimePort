@@ -73,6 +73,34 @@ func main() {
 		default:
 			log.Fatalf("unknown maintenance subcommand %q", os.Args[2])
 		}
+	case "integration":
+		if len(os.Args) < 3 || os.Args[2] != "provision" {
+			log.Fatal("usage: chimeport integration provision --username admin --source home-assistant --label home --channels home/door,home/weather --token-out /data/token.out")
+		}
+		f := flag.NewFlagSet("integration provision", flag.ExitOnError)
+		username := f.String("username", "admin", "Existing enabled account")
+		source := f.String("source", "", "Integration source name")
+		label := f.String("label", "", "Token label")
+		channels := f.String("channels", "", "Comma-separated channel slugs")
+		tokenOut := f.String("token-out", "", "Exclusive private output path, e.g. /data/ha-token.out")
+		_ = f.Parse(os.Args[3:])
+		if *source == "" || *label == "" || *channels == "" || *tokenOut == "" || f.NArg() != 0 {
+			log.Fatal("source, label, channels and token-out are required")
+		}
+		specs := []app.ProvisionChannel{}
+		for _, channel := range strings.Split(*channels, ",") {
+			specs = append(specs, app.ProvisionChannel{Slug: channel, Name: channel})
+		}
+		store, err := app.OpenStore(dataDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer store.DB.Close()
+		id, err := store.ProvisionSource(context.Background(), *username, *source, *label, specs, *tokenOut)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Integration provisioned: token id=%d, source=%s, channels=%s; secret saved privately at %s\\n", id, *source, *channels, *tokenOut)
 	case "bootstrap":
 		f := flag.NewFlagSet("bootstrap", flag.ExitOnError)
 		username := f.String("username", "admin", "First administrator username")

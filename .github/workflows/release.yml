@@ -1,0 +1,131 @@
+name: First versioned release (v0.1.0)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Verify Go server
+        working-directory: server
+        run: |
+          go test -race ./...
+          go vet ./...
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable release Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/mirivlad/chimeport:v0.1.0
+            ghcr.io/mirivlad/chimeport:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/mirivlad/ChimePort
+            org.opencontainers.image.version=v0.1.0
+            org.opencontainers.image.licenses=AGPL-3.0-only
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Restore pinned alpha signing identity
+        shell: bash
+        env:
+          CHIMEPORT_ALPHA_KEYSTORE_B64: ${{ secrets.CHIMEPORT_ALPHA_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CHIMEPORT_ALPHA_KEYSTORE_B64" ]; then
+            umask 077
+            mkdir -p "$HOME/.android"
+            printf '%s' "$CHIMEPORT_ALPHA_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
+            echo "CHIMEPORT_SIGNING_SOURCE=secret" >> "$GITHUB_ENV"
+          else
+            echo "CHIMEPORT_SIGNING_SOURCE=cache" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/cache/restore@v4
+        if: env.CHIMEPORT_SIGNING_SOURCE == 'cache'
+        with:
+          path: ~/.android/debug.keystore
+          key: chimeport-alpha-debug-signing-v1
+      - name: Fail if signing identity was lost
+        run: |
+          test -f "$HOME/.android/debug.keystore" || { echo "::error::Original Android signing key is unavailable"; exit 1; }
+          echo "CHIMEPORT_SIGNING_KEYSTORE=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+      - name: Install Android SDK
+        run: |
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Build and test APK
+        working-directory: android
+        run: |
+          gradle --no-daemon --stacktrace :app:testDebugUnitTest
+          gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify signature, package ID, and produce checksum
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/ChimePort-android-v0.1.0-alpha.apk
+          bash android/scripts/verify-distribution-signature.sh dist/ChimePort-android-v0.1.0-alpha.apk
+          (cd dist && sha256sum ChimePort-android-v0.1.0-alpha.apk > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chimeport-versioned-android
+          path: dist/
+
+  release:
+    needs: [server, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: chimeport-versioned-android
+          path: dist
+      - name: Create v0.1.0 release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            echo "Release v0.1.0 already exists, refusing to replace published artifacts"
+            exit 0
+          fi
+          gh release create v0.1.0 \
+            dist/ChimePort-android-v0.1.0-alpha.apk dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title "ChimePort v0.1.0" \
+            --notes-file docs/releases/v0.1.0.md \
+            --latest
