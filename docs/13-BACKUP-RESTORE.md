@@ -1,5 +1,7 @@
 # ChimePort — резервное копирование и восстановление
 
+**Актуально для сервера v0.1.2 (2026-11-05).** Ниже показаны действия на Docker-хосте; Portainer управляет контейнером, но бэкап выполняется отдельным временным контейнером. Не удаляйте существующий том `/data`.
+
 Статус: **команды обслуживания реализованы, веб-мастер восстановления ещё не создан**.
 Они запускаются через временный контейнер из Docker-хоста и работают даже при
 недоступной веб-панели. Восстановление не перезаписывает действующий том.
@@ -40,12 +42,14 @@ sudo install -d -m 0700 -o 10001 -g 10001 /srv/chimeport/backups
 
 ## Шаг 2. Создать онлайн-бэкап без остановки сервера
 
+**Важно:** `/srv/chimeport/backups` в примере — каталог **на Docker-хосте**. Создайте его с UID/GID 10001 и правами 0700. В архив входят секреты; после создания сделайте независимую зашифрованную копию.
+
 Из локального клона репозитория на Docker-хосте:
 
 ~~~sh
 export CHIMEPORT_DATA_SOURCE=chimeport_chimeport_data
 export CHIMEPORT_BACKUP_DIR=/srv/chimeport/backups
-export CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:main
+export CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.2
 sh deploy/scripts/chimeport-backup.sh
 ~~~
 
@@ -62,7 +66,7 @@ Verified backup: /srv/chimeport/backups/chimeport-20261104T033000Z.tar.gz
 
 Для cron после проверки ручного запуска:
 ~~~cron
-0 3 * * * CHIMEPORT_DATA_SOURCE=chimeport_chimeport_data CHIMEPORT_BACKUP_DIR=/srv/chimeport/backups /bin/sh /opt/chimeport/deploy/scripts/chimeport-backup.sh >> /var/log/chimeport-backup.log 2>&1
+0 3 * * * CHIMEPORT_DATA_SOURCE=chimeport_chimeport_data CHIMEPORT_BACKUP_DIR=/srv/chimeport/backups CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.2 /bin/sh /opt/chimeport/deploy/scripts/chimeport-backup.sh >> /var/log/chimeport-backup.log 2>&1
 ~~~
 
 Здесь /opt/chimeport — **пример** пути клона репозитория: укажите реальный
@@ -76,7 +80,7 @@ Verified backup: /srv/chimeport/backups/chimeport-20261104T033000Z.tar.gz
 docker run --rm --network none --user 10001:10001 \
   --security-opt no-new-privileges:true --cap-drop ALL \
   --mount type=bind,source=/srv/chimeport/backups,target=/backups,readonly \
-  ghcr.io/mirivlad/chimeport:main maintenance verify \
+  ghcr.io/mirivlad/chimeport:v0.1.2 maintenance verify \
   --archive /backups/chimeport-20261104T033000Z.tar.gz
 ~~~
 
@@ -120,7 +124,7 @@ docker run --rm --network none --user 10001:10001 \
   --security-opt no-new-privileges:true --cap-drop ALL \
   --mount type=bind,source=/srv/chimeport/backups,target=/backups,readonly \
   --mount type=bind,source=/srv/chimeport/restored-20261104,target=/data \
-  ghcr.io/mirivlad/chimeport:main maintenance restore \
+  ghcr.io/mirivlad/chimeport:v0.1.2 maintenance restore \
   --archive /backups/chimeport-20261104T033000Z.tar.gz \
   --data-dir /data \
   --expect-instance ВСТАВИТЬ_INSTANCE_ID_ИЗ_VERIFY
@@ -172,7 +176,7 @@ chimeport maintenance restore --data-dir /data --archive /backups/имя.tar.gz 
 
 - Пока нет веб-интерфейса администратора для архивации и восстановления,
   расписания/удалённой синхронизации/шифрования внутри самого ChimePort.
-- Схема SQLite сейчас версии 2. Будущие изменения схемы требуют снимка
+- В релизе v0.1.2 используется схема SQLite **версии 3** (проверено на рабочей инсталляции 2026-11-05). Будущие изменения схемы требуют снимка
   перед миграцией и явного описания совместимости конкретных образов.
 - Полный disaster recovery после потери Docker-хоста появится только после
   реальной проверки восстановлением копии **с другого носителя**.
