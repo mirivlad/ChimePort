@@ -4,7 +4,7 @@
 # В инструментах разработчика → Действия → YAML можно проверить интеграцию:
 # action: rest_command.chimeport_publish
 # data:
-#   channel: home/door
+#   channel: home
 #   title: Проверка ChimePort
 #   message: Тест из Home Assistant
 #   priority: normal
@@ -17,7 +17,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/door
+        channel: home
         title: "Входная дверь"
         message: "Открыта"
         priority: high
@@ -30,7 +30,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/door
+        channel: home
         title: "Входная дверь"
         message: "Закрыта"
         priority: normal
@@ -44,7 +44,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/door
+        channel: home
         title: "Входная дверь"
         message: "Открыта дольше пяти минут"
         priority: urgent
@@ -57,7 +57,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/climate
+        channel: home
         title: "Жарко в комнате"
         message: "Температура: {{ states('sensor.living_room_temperature') }} °C"
         priority: high
@@ -70,7 +70,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/climate
+        channel: home
         title: "Холодно в комнате"
         message: "Температура: {{ states('sensor.living_room_temperature') }} °C"
         priority: high
@@ -83,7 +83,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/sensors
+        channel: home
         title: "Батарея датчика двери"
         message: "Заряд: {{ states('sensor.front_door_battery') }}%"
         priority: high
@@ -96,7 +96,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/climate
+        channel: home
         title: "Климат в доме"
         message: "Температура {{ states('sensor.living_room_temperature') }} °C"
         priority: normal
@@ -108,7 +108,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/system
+        channel: home
         title: "Home Assistant"
         message: "Запущен"
         priority: normal
@@ -120,7 +120,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/system
+        channel: home
         title: "Home Assistant"
         message: "Останавливается"
         priority: high
@@ -133,7 +133,7 @@
   actions:
     - action: rest_command.chimeport_publish
       data:
-        channel: home/weather
+        channel: home
         title: "Погода"
         message: >-
           Температура: {{ state_attr('weather.home', 'temperature') }} °C;
