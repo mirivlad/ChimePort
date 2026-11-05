@@ -74,11 +74,28 @@ func migrate(db *sql.DB) error {
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version > 3 {
+	if version > 4 {
 		return fmt.Errorf("unsupported database schema %d", version)
 	}
-	if version == 3 {
+	if version == 4 {
 		return nil
+	}
+	if version == 3 {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		for _, q := range []string{
+			"CREATE TABLE webpush_subscriptions (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+			"CREATE INDEX webpush_subscriptions_user_idx ON webpush_subscriptions(user_id)",
+			"PRAGMA user_version=4",
+		} {
+			if _, err := tx.Exec(q); err != nil {
+				return fmt.Errorf("migration v4: %w", err)
+			}
+		}
+		return tx.Commit()
 	}
 	if version == 1 {
 		// Retain the existing v1-to-v2 migration before applying v3.
@@ -106,7 +123,10 @@ func migrate(db *sql.DB) error {
 				return fmt.Errorf("migration v3: %w", err)
 			}
 		}
-		return tx.Commit()
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return migrate(db)
 	}
 	tx, err := db.Begin()
 	if err != nil {
@@ -128,11 +148,13 @@ func migrate(db *sql.DB) error {
 		`CREATE TABLE read_states (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE, read_at TEXT NOT NULL, PRIMARY KEY(user_id,message_id))`,
 		`CREATE TABLE publication_windows (token_id INTEGER PRIMARY KEY REFERENCES source_tokens(id) ON DELETE CASCADE, minute INTEGER NOT NULL, accepted INTEGER NOT NULL)`,
 		`CREATE TABLE retention_watermarks (owner_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, last_deleted_id INTEGER NOT NULL)`,
-		`PRAGMA user_version=3`,
+		"CREATE TABLE webpush_subscriptions (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+		"CREATE INDEX webpush_subscriptions_user_idx ON webpush_subscriptions(user_id)",
+		`PRAGMA user_version=4`,
 	}
 	for _, q := range statements {
 		if _, err := tx.Exec(q); err != nil {
-			return fmt.Errorf("migration v3 initial: %w", err)
+			return fmt.Errorf("migration v4 initial: %w", err)
 		}
 	}
 	return tx.Commit()

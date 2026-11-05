@@ -28,6 +28,9 @@ type App struct {
 	PublishRatePerMinute int
 	secure               bool
 	cursorSecret         string
+	vapidPublic          string
+	pushSlots            chan struct{}
+	pushSend             pushSendFunc
 	limiter              loginLimiter
 	mu                   sync.Mutex
 	listeners            map[int64]map[chan int64]struct{}
@@ -52,7 +55,11 @@ func New(store *Store, publicURL string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{Store: store, PublicURL: publicURL, PublishRatePerMinute: 120, secure: u.Scheme == "https", cursorSecret: secret, listeners: map[int64]map[chan int64]struct{}{}}, nil
+	a := &App{Store: store, PublicURL: publicURL, PublishRatePerMinute: 120, secure: u.Scheme == "https", cursorSecret: secret, listeners: map[int64]map[chan int64]struct{}{}}
+	if err := a.initWebPush(); err != nil {
+		return nil, err
+	}
+	return a, nil
 }
 
 func (a *App) Handler() http.Handler {
@@ -97,6 +104,10 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/messages/{id}/read", a.markRead)
 	mux.HandleFunc("DELETE /api/v1/messages/{id}/read", a.markUnread)
 	mux.HandleFunc("GET /api/v1/events", a.events)
+	mux.HandleFunc("GET /api/v1/webpush/vapid-public-key", a.webPushPublicKey)
+	mux.HandleFunc("GET /api/v1/webpush/subscriptions", a.webPushSubscriptions)
+	mux.HandleFunc("POST /api/v1/webpush/subscriptions", a.webPushSubscribe)
+	mux.HandleFunc("DELETE /api/v1/webpush/subscriptions", a.webPushUnsubscribe)
 	mux.HandleFunc("GET /", a.web)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -110,7 +121,7 @@ func (a *App) Handler() http.Handler {
 	})
 }
 func (a *App) web(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" && r.URL.Path != "/examples" && r.URL.Path != "/examples.js" && r.URL.Path != "/themes.css" && r.URL.Path != "/theme.js" && r.URL.Path != "/chimeport-icon.svg" {
+	if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" && r.URL.Path != "/examples" && r.URL.Path != "/examples.js" && r.URL.Path != "/themes.css" && r.URL.Path != "/theme.js" && r.URL.Path != "/chimeport-icon.svg" && r.URL.Path != "/sw.js" && r.URL.Path != "/push.js" && r.URL.Path != "/manifest.webmanifest" && r.URL.Path != "/icons/icon-192.png" && r.URL.Path != "/icons/icon-512.png" {
 		http.NotFound(w, r)
 		return
 	}
@@ -135,6 +146,26 @@ func (a *App) web(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/chimeport-icon.svg" {
 		path = "web/chimeport-icon.svg"
 		mime = "image/svg+xml"
+	}
+	if r.URL.Path == "/sw.js" {
+		path = "web/sw.js"
+		mime = "text/javascript; charset=utf-8"
+	}
+	if r.URL.Path == "/push.js" {
+		path = "web/push.js"
+		mime = "text/javascript; charset=utf-8"
+	}
+	if r.URL.Path == "/manifest.webmanifest" {
+		path = "web/manifest.webmanifest"
+		mime = "application/manifest+json"
+	}
+	if r.URL.Path == "/icons/icon-192.png" {
+		path = "web/icon-192.png"
+		mime = "image/png"
+	}
+	if r.URL.Path == "/icons/icon-512.png" {
+		path = "web/icon-512.png"
+		mime = "image/png"
 	}
 	if r.URL.Path == "/examples" {
 		path = "web/examples.html"

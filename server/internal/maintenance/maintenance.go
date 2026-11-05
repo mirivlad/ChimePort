@@ -26,7 +26,7 @@ import (
 
 const (
 	FormatVersion          = 1
-	SupportedSchema        = 3
+	SupportedSchema        = 4
 	maxDatabaseBytes int64 = 64 << 30
 	maxManifestBytes int64 = 64 << 10
 )
@@ -153,6 +153,54 @@ func verifyDatabase(path string, key []byte) (string, int, error) {
 			}
 			if _, cipherErr = gcm.Open(nil, raw[:gcm.NonceSize()], raw[gcm.NonceSize():], nil); cipherErr != nil {
 				return "", 0, errors.New("token-key does not decrypt stored tokens")
+			}
+		}
+	}
+	if version >= 4 {
+		// A snapshot must contain a working VAPID private key whenever it
+		// contains a VAPID public identity. Fresh, never-started databases
+		// may have neither and will generate a pair at first server start.
+		var vapidPub, vapidEncrypted string
+		pubErr := db.QueryRow("SELECT value FROM instance WHERE key='webpush_vapid_public'").Scan(&vapidPub)
+		privErr := db.QueryRow("SELECT value FROM instance WHERE key='webpush_vapid_private'").Scan(&vapidEncrypted)
+		if errors.Is(pubErr, sql.ErrNoRows) && errors.Is(privErr, sql.ErrNoRows) {
+			var active int
+			if err := db.QueryRow("SELECT COUNT(*) FROM webpush_subscriptions").Scan(&active); err != nil {
+				return "", 0, err
+			}
+			if active != 0 {
+				return "", 0, errors.New("webpush subscriptions exist without VAPID identity")
+			}
+		} else {
+			if pubErr != nil || privErr != nil {
+				return "", 0, errors.New("incomplete VAPID keypair in backup")
+			}
+			public, decodeErr := base64.RawURLEncoding.DecodeString(vapidPub)
+			if decodeErr != nil || len(public) != 65 || public[0] != 4 {
+				return "", 0, errors.New("invalid VAPID public key in backup")
+			}
+			raw, decodeErr := base64.RawURLEncoding.DecodeString(vapidEncrypted)
+			if decodeErr != nil {
+				return "", 0, errors.New("VAPID private key ciphertext is corrupt")
+			}
+			block, cipherErr := aes.NewCipher(key)
+			if cipherErr != nil {
+				return "", 0, cipherErr
+			}
+			gcm, cipherErr := cipher.NewGCM(block)
+			if cipherErr != nil {
+				return "", 0, cipherErr
+			}
+			if len(raw) < gcm.NonceSize() {
+				return "", 0, errors.New("VAPID private key ciphertext is truncated")
+			}
+			plaintext, cipherErr := gcm.Open(nil, raw[:gcm.NonceSize()], raw[gcm.NonceSize():], nil)
+			if cipherErr != nil {
+				return "", 0, errors.New("token-key does not decrypt stored VAPID private key")
+			}
+			secret, decodeErr := base64.RawURLEncoding.DecodeString(string(plaintext))
+			if decodeErr != nil || len(secret) != 32 {
+				return "", 0, errors.New("VAPID private key is invalid")
 			}
 		}
 	}

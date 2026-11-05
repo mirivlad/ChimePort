@@ -39,6 +39,7 @@ function showTab(id) {
 }
 function setAuth(user) {
   state.me = user;
+  window.dispatchEvent(new CustomEvent('chimeport:auth', { detail: { signedIn: Boolean(user) } }));
   $('login-panel').hidden = Boolean(user);
   $('app-panel').hidden = !user;
   $('logout').hidden = !user;
@@ -398,6 +399,12 @@ function renderMessages() {
   const priorities = { low: 'Низкий', normal: 'Обычный', high: 'Высокий', urgent: 'Срочный' };
   for (const msg of messages) {
     const card = el('article', undefined, 'message panel' + (msg.read_at ? '' : ' unread'));
+    card.dataset.messageId = String(msg.id);
+    const focusID = new URLSearchParams(location.search).get('message');
+    if (focusID && /^\d+$/.test(focusID) && focusID === String(msg.id)) {
+      card.classList.add('message-target');
+      requestAnimationFrame(() => card.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    }
     const heading = el('div', undefined, 'message-heading');
     const title = el('div');
     title.append(el('h2', msg.title), el('p', `${msg.channel} · ${msg.source}`, 'meta'));

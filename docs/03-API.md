@@ -104,6 +104,10 @@ Authorization: Bearer <source-token>
 
 Сервер по умолчанию хранит историю **30 дней**, `CHIMEPORT_RETENTION_DAYS=0` отключает удаление. История и связанные записи очищаются при старте и ежедневно; `retention_gap=true` говорит о разрыве при чтении с прежним курсором.
 
+## Предварительные расширения M3 (не входят в сервер v0.1.2)
+
+В ветке `feat/pwa-webpush-m3` добавлены `GET /webpush/vapid-public-key` и `GET/POST/DELETE /webpush/subscriptions`. Схема 4, пользовательские подписки и VAPID будут доступны **только после выпуска и установки нового Docker-образа**. Подробности: [PWA/Web Push](16-PWA-WEBPUSH.md).
+
 ## Что пока не реализовано
 
 Не зарегистрированы: `POST /auth/refresh`, `GET /messages/{id}`, маршруты `/devices` и `/devices/{id}/webpush`, `/settings/notifications`, REST-API для PWA и Web Push. Они встречались в старом дизайн-документе как планы, **но не являются доступным API v1**. Для будущих контрактов см. [roadmap](07-ROADMAP.md).

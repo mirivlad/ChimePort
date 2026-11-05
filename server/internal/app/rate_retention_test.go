@@ -153,7 +153,7 @@ func TestRetentionPrunesDependenciesAndSignalsGapPerOwner(t *testing.T) {
 	}
 }
 
-func TestUpgradeV2ToV3(t *testing.T) {
+func TestUpgradeV2ToV4(t *testing.T) {
 	dir := t.TempDir()
 	store, err := OpenStore(dir)
 	if err != nil {
@@ -162,6 +162,7 @@ func TestUpgradeV2ToV3(t *testing.T) {
 	for _, sql := range []string{
 		"DROP TABLE publication_windows",
 		"DROP TABLE retention_watermarks",
+		"DROP TABLE webpush_subscriptions",
 		"DROP INDEX messages_created_at_idx",
 		"PRAGMA user_version=2",
 	} {
@@ -176,7 +177,7 @@ func TestUpgradeV2ToV3(t *testing.T) {
 	}
 	defer upgraded.DB.Close()
 	var version int
-	if err := upgraded.DB.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 3 {
+	if err := upgraded.DB.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 4 {
 		t.Fatalf("unexpected schema %d: %v", version, err)
 	}
 }

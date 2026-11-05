@@ -4,12 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ChimePort">
   <title>ChimePort — панель уведомлений</title>
   <link rel="icon" type="image/svg+xml" href="/chimeport-icon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <script src="/theme.js"></script>
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
   <script src="/app.js" defer></script>
+  <script src="/push.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -35,6 +40,7 @@
           <button type="button" class="nav-item active" data-tab="inbox"><span aria-hidden="true">▣</span> Входящие <span id="nav-unread" class="nav-count" hidden></span></button>
           <button type="button" class="nav-item" data-tab="channels"><span aria-hidden="true">◫</span> Каналы <span id="nav-channels" class="nav-count">0</span></button>
           <button type="button" class="nav-item" data-tab="sources"><span aria-hidden="true">⌁</span> Источники и токены</button>
+          <button type="button" class="nav-item" data-tab="settings"><span aria-hidden="true">⚙</span> Настройки</button>
           <button type="button" class="nav-item" id="admin-tab" data-tab="admin" hidden><span aria-hidden="true">♙</span> Пользователи</button>
         </nav>
         <div class="sidebar-help"><strong>Как это работает</strong><p>Создайте канал → добавьте источник → выдайте ему токен → отправляйте уведомления.</p></div>
@@ -67,6 +73,27 @@
           </div>
           <div id="source-helper" class="panel onboarding" hidden><strong>Сначала нужен канал</strong><p class="hint">Чтобы источник мог отправлять сообщения, у него должен быть хотя бы один разрешённый канал.</p><button id="go-channels" type="button">Перейти к каналам</button></div>
           <div id="source-list" class="card-list"></div>
+        </section>
+        <section id="settings" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">ПРИЛОЖЕНИЕ</div><h1>Настройки</h1><p class="hint">Установка ChimePort и уведомления на этом устройстве.</p></div></div>
+          <div class="settings-stack">
+            <div class="panel">
+              <h2>Web Push</h2>
+              <p class="hint">Получайте новые уведомления браузера, даже когда вкладка закрыта. Сначала разрешите показ уведомлений. Доставка зависит от браузера, сети и настроек ОС.</p>
+              <p id="push-status" class="muted-line" role="status">Проверяем поддержку Web Push…</p>
+              <div class="settings-actions">
+                <button id="push-enable" type="button" disabled>Включить уведомления</button>
+                <button id="push-disable" type="button" class="secondary" hidden>Отключить на этом устройстве</button>
+              </div>
+              <p class="small-note">Web Push и Android — два независимых способа получения сообщений. При выходе из аккаунта подписка данного сеанса отзывается на сервере. Для проверки отправьте сообщение через API или страницу примеров.</p>
+            </div>
+            <div class="panel">
+              <h2>Установить ChimePort</h2>
+              <p class="hint">Установленное веб-приложение открывается в отдельном окне и использует ту же учётную запись. На iPhone/iPad откройте браузерное меню «Поделиться» → «На экран Домой», затем запускайте ChimePort с домашнего экрана.</p>
+              <div class="settings-actions"><button id="pwa-install" type="button" hidden>Установить приложение</button></div>
+              <p class="small-note">Возможность установки зависит от браузера. При отсутствии сети открывается оболочка приложения без пользовательских данных; для входа и чтения истории нужен сервер.</p>
+            </div>
+          </div>
         </section>
         <section id="admin" class="view" hidden>
           <div class="page-heading"><div><div class="eyebrow">УПРАВЛЕНИЕ СЕРВЕРОМ</div><h1>Пользователи</h1><p class="hint">Создавайте учётные записи и выбирайте их роль.</p></div><button id="new-user" type="button">+ Добавить пользователя</button></div>
