@@ -267,7 +267,7 @@ html[data-theme="control"] .sidebar-help { border-radius: 5px; }
   html[data-theme] .theme-control select { min-width: 95px; font-size: .78rem; }
 }
 @media (max-width: 520px) {
-  html[data-theme] .topbar { align-items: flex-start; gap: 12px; }
+  html[data-theme] .topbar { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
   html[data-theme] .account { width: 100%; justify-content: flex-start; }
   html[data-theme] .theme-control { margin-left: auto; }
   html[data-theme] .brand small { display: none; }
