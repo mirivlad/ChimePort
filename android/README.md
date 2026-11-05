@@ -1,6 +1,21 @@
 # ChimePort — Android alpha
 
-Native client: Kotlin + Jetpack Compose / Material 3. Connects to any HTTPS ChimePort server, with multiple server accounts and an offline message cache. Not a WebView.
+Нативный клиент на Kotlin + Jetpack Compose / Material 3, не WebView. Подключается к любому HTTPS-серверу ChimePort, объединяет сообщения нескольких независимых серверов и хранит локальную историю.
+
+**Актуальный выпуск:** APK из [ChimePort v0.1.1](https://github.com/mirivlad/ChimePort/releases/tag/v0.1.1) (внутри `versionName 0.8.1-alpha`, `versionCode 11`). Сервер v0.1.2 совместим с этим APK; в релизе v0.1.2 Android не менялся.
+
+## Установка и первые шаги
+
+1. Скачайте именно **релизный APK** и контрольную сумму из GitHub Releases, проверьте SHA-256. PR-артефакты нельзя использовать как обновления: у них может быть другая подпись.
+2. Установите APK обычным способом и выдайте разрешение показывать уведомления.
+3. Добавьте HTTPS-адрес **своего** сервера, войдите с учётной записью ChimePort (не source token).
+4. Откройте **Входящие**, добавьте другие серверы при необходимости. **Поиск** фильтрует историю; **Настройки** содержат звуки, тихие часы и диагностику.
+5. Для фоновой доставки включите опциональное постоянное соединение, если подходит уведомление foreground service. Force-stop, сеть, энергосбережение, DND и системные каналы могут помешать своевременной доставке.
+
+**Нет гарантии мгновенного push** при остановленном приложении; серверная история сохраняется и синхронизируется после возвращения в сеть. Браузерные PWA/Web Push здесь ни при чём.
+
+## История изменений и технические подробности
+
 
 ## Build and release
 
@@ -9,7 +24,7 @@ Build with Android SDK 35, JDK 17, Gradle 8.11.1 from the android directory:
 
 GitHub Actions workflow "Android APK and prerelease" runs on pull requests and pushes to main. On a successful main build it publishes **an automatic GitHub prerelease** with an installable APK and checksum.
 
-The alpha APK uses Android **debug signing** generated on the runner, not a stable signing identity. A new build may have a different certificate, so Android may require uninstall of the previous build. Uninstall removes the on-device cache/session; server messages persist. Before stable release we must configure a durable signing keystore in GitHub Secrets.
+**Важно о подписи:** опубликованные alpha APK начиная с закреплённого сертификата проходят обязательную проверку SHA-256 fingerprint. CI предпочитает зашифрованный GitHub Actions Secret `CHIMEPORT_ALPHA_KEYSTORE_B64`; предусмотрен резервный путь через старый pinned cache, и сборка завершается ошибкой при отсутствии обоих. PR-сборка может иметь другую подпись. Старые описания инцидента alpha 5/6 ниже сохранены **для истории**, они не описывают текущую политику выпуска.
 
 ## Pilot acceptance
 1. Install the APK without Android Studio or Google Play.
@@ -19,7 +34,7 @@ The alpha APK uses Android **debug signing** generated on the runner, not a stab
 5. Add a second HTTPS ChimePort server; verify separate sessions and no mixed messages.
 6. Use light and dark themes, large fonts, bad network/TLS conditions.
 
-Foreground SSE listeners keep the feed up to date while the app is open. Newly received live events can also appear in the Android notification shade after POST_NOTIFICATIONS permission is granted. Historical catch-up never generates a flood of old system notifications. There is still no reliable delivery when the app is closed or suspended; that requires a separate background-delivery stage.
+Foreground SSE listeners keep the feed up to date while the app is open. Newly received live events can also appear in the Android notification shade after POST_NOTIFICATIONS permission is granted. Historical catch-up never generates a flood of old system notifications. Для фона теперь доступен опциональный foreground service (см. ниже), но он не обеспечивает безусловную доставку после force-stop или ограничений ОС.
 
 ## Live event transport
 
@@ -45,7 +60,7 @@ The actual published alpha-5 and alpha-6 APK signatures are **different**, altho
 
 From the next alpha onward, CI sets an explicit CHIMEPORT_SIGNING_KEYSTORE for Gradle, verifies the **actual output APK** with apksigner, and compares the certificate with a pinned SHA-256 fingerprint. A missing cache now **fails the release build** instead of silently generating a new key. PR validation APKs may have another debug certificate and must not be distributed as upgrades.
 
-The signing key is still held in Actions cache. This is a **temporary alpha-only solution**, not a secure or durable release setup. Before stable releases, migrate a protected signing keystore to GitHub Actions Secrets, not into Git.
+**Историческая заметка:** на момент инцидента подпись хранилась только в Actions cache. Текущий workflow уже поддерживает защищённый Actions Secret, проверяет сертификат и отказывается выпускать APK при отсутствии закреплённого ключа.
 
 ## Alpha 9: repeated swipe regression fix
 
@@ -101,7 +116,7 @@ and checked before release.
 
 All APKs from alpha 8 onward use the same pinned certificate. Rotating the
 private signing key would force an uninstall and wipe Android app-local data.
-The private key currently lives in an expiring Actions cache.
+Актуальный CI в первую очередь использует защищённый Actions Secret; поддержка прежнего cache оставлена как fallback. Ниже приведён **архивный порядок миграции**, если она необходима на другой инсталляции CI.
 
 A one-time *manual* GitHub Actions workflow safely migrates the **same**
 keystore to an encrypted repository secret. The owner must explicitly authorize
