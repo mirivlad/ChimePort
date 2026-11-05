@@ -110,7 +110,7 @@ func (a *App) Handler() http.Handler {
 	})
 }
 func (a *App) web(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" && r.URL.Path != "/examples" && r.URL.Path != "/examples.js" {
+	if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" && r.URL.Path != "/examples" && r.URL.Path != "/examples.js" && r.URL.Path != "/themes.css" && r.URL.Path != "/theme.js" && r.URL.Path != "/chimeport-icon.svg" {
 		http.NotFound(w, r)
 		return
 	}
@@ -123,6 +123,18 @@ func (a *App) web(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/style.css" {
 		path = "web/style.css"
 		mime = "text/css; charset=utf-8"
+	}
+	if r.URL.Path == "/themes.css" {
+		path = "web/themes.css"
+		mime = "text/css; charset=utf-8"
+	}
+	if r.URL.Path == "/theme.js" {
+		path = "web/theme.js"
+		mime = "text/javascript; charset=utf-8"
+	}
+	if r.URL.Path == "/chimeport-icon.svg" {
+		path = "web/chimeport-icon.svg"
+		mime = "image/svg+xml"
 	}
 	if r.URL.Path == "/examples" {
 		path = "web/examples.html"
