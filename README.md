@@ -133,7 +133,7 @@ CHIMEPORT_DATA_DIR=./data CHIMEPORT_PUBLIC_URL=http://localhost:8080 go run ./cm
 
 ```bash
 chimeport integration provision --username admin --source home-assistant \
-  --label ha --channels home/door,home/weather --token-out /data/ha-token.tmp
+  --label ha --channels home --token-out /data/ha-token.tmp
 ```
 
 Токен сохраняется только в новом файле с правами 0600; команда не выводит секрет в консоль. После переноса в защищённые secrets другого приложения временный файл удалить. Для остальных проектов создавать собственные источники и токены.

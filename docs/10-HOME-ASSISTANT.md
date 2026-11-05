@@ -16,7 +16,7 @@
 
 ## Кратко
 
-1. В ChimePort создайте источник `home-assistant`, каналы `home/door`, `home/weather`, `home/climate`, `home/sensors`, `home/system`; выдайте ему ограниченный токен.
+1. В ChimePort создайте источник `home-assistant`, один канал `home` (название «Дом»); выдайте ему ограниченный токен.
 2. Сохраните `Bearer cp_t_...` в локальном HA `secrets.yaml` как `chimeport_bearer`.
 3. Добавьте `rest_command.chimeport_publish` из каталога примеров в `configuration.yaml`, установив **свой** адрес вместо `https://notify.example.org`.
 4. Проверьте YAML, перезапустите HA, выполните тест в инструментах разработчика.
