@@ -1,55 +1,25 @@
-# 10. Пример интеграции с Home Assistant
+# 10. Home Assistant → ChimePort
 
-**Цель:** заменить скрипт отправки Telegram-сообщения вызовом собственного ChimePort API. Пример относится к **планируемому** API и заработает только после реализации сервера.
+**Рабочая интеграция для ChimePort v0.1.0 и Home Assistant 2026.1.3.** Никаких сторонних интеграций HA не требуется: используем стандартный `rest_command` и REST API ChimePort.
 
-## 1. На сервере ChimePort
+Полная инструкция с проверкой, примерами отправки, секретами и автоматизациями:
 
-1. Создать личный канал `home/security`.
-2. Создать источник с названием `Home Assistant` и описанием «Автоматизация дома».
-3. Создать токен с правом **только** `messages:write` в `home/security`.
-4. Записать токен в секреты Home Assistant; не вставлять его в YAML репозитория.
+**[examples/home-assistant/README.md](../examples/home-assistant/README.md)**
 
-## 2. `secrets.yaml`
+В каталоге примеров также находятся:
 
-```yaml
-chimeport_bearer_header: "Bearer REPLACE_WITH_YOUR_SECRET_SOURCE_TOKEN"
-```
+- [configuration.fragment.yaml](../examples/home-assistant/configuration.fragment.yaml) — HTTP-команда для `configuration.yaml`;
+- [secrets.yaml.example](../examples/home-assistant/secrets.yaml.example) — заглушка Bearer-токена;
+- [automations.example.yaml](../examples/home-assistant/automations.example.yaml) — примеры для двери, температуры, батареек, погоды и запуска/остановки HA.
 
-## 3. `configuration.yaml`
+Весь пример использует **только вымышленный домен `notify.example.org` и недействительный токен `cp_t_EXAMPLE_NOT_A_REAL_TOKEN`**. Не сохраняйте реальные токены в Git.
 
-```yaml
-rest_command:
-  chimeport_security:
-    url: "https://notify.example.org/api/v1/messages"
-    method: POST
-    content_type: "application/json"
-    headers:
-      Authorization: !secret chimeport_bearer_header
-    payload: >-
-      {{ {
-        "channel": "home/security",
-        "title": title,
-        "body": message,
-        "priority": "high"
-      } | tojson }}
-    timeout: 10
-    verify_ssl: true
-```
+## Кратко
 
-Пример действия автоматизации:
+1. В ChimePort создайте источник `home-assistant`, каналы `home/door`, `home/weather`, `home/climate`, `home/sensors`, `home/system`; выдайте ему ограниченный токен.
+2. Сохраните `Bearer cp_t_...` в локальном HA `secrets.yaml` как `chimeport_bearer`.
+3. Добавьте `rest_command.chimeport_publish` из каталога примеров в `configuration.yaml`, установив **свой** адрес вместо `https://notify.example.org`.
+4. Проверьте YAML, перезапустите HA, выполните тест в инструментах разработчика.
+5. В существующие автоматизации **добавьте второе действие** ChimePort. Не удаляйте Telegram: он остаётся параллельным каналом уведомлений.
 
-```yaml
-- action: rest_command.chimeport_security
-  data:
-    title: "Входная дверь"
-    message: "Дверь открыта"
-```
-
-Имена сущностей/структура автоматизации зависят от конфигурации конкретного HA. После внедрения сервера протестировать на поддерживаемой версии HA.
-
-## 4. Важные нюансы
-
-- Home Assistant может повторить запрос после ошибки; для событий, где возможны повторы, передавать стабильный `Idempotency-Key` в рамках одного исходного события.
-- Для критичных датчиков не считать push единственным предупреждением: серверное принятие не гарантирует показа на телефоне.
-- Для разных групп событий создать отдельные каналы (`home/security`, `home/climate`, `home/service`) и отдельные токены, если нужны разные права.
-- Хранить URL и токен как конфигурацию, а не внутри множества автоматизаций.
+При успехе HA покажет `status: 201`, а ответ ChimePort содержит `stored: true`; уведомление также должно прийти в Android-клиент.
