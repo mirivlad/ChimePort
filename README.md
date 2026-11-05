@@ -72,7 +72,7 @@ curl -X POST 'https://chime.mirv.top/api/v1/messages' \
 
 ## Статус и лицензия
 
-- Сервер, веб-панель и Android-клиент находятся в `main`. GitHub Actions публикует экспериментальный Docker-образ `ghcr.io/mirivlad/chimeport:v0.1.0` после успешной сборки; это первая версионированная версия (Android остаётся alpha). Android-клиент работает; PWA/Web Push пока нет.
+- Сервер, веб-панель и Android-клиент находятся в `main`. GitHub Actions публикует экспериментальный Docker-образ `ghcr.io/mirivlad/chimeport:v0.1.1` после успешной сборки; это первая версионированная версия (Android остаётся alpha). Android-клиент работает; PWA/Web Push пока нет.
 - Название **ChimePort** предварительное и требует отдельной проверки марки/доменов.
 - Лицензия исходного кода: AGPL-3.0-only (см. [LICENSE](LICENSE)).
 - Для первых релизов планируется русский и английский интерфейс.
@@ -128,7 +128,7 @@ CHIMEPORT_DATA_DIR=./data CHIMEPORT_PUBLIC_URL=http://localhost:8080 go run ./cm
 
 ## Первая версия v0.1.0
 
-- Релиз: [v0.1.0](https://github.com/mirivlad/ChimePort/releases/tag/v0.1.0), Docker `ghcr.io/mirivlad/chimeport:v0.1.0`, Android alpha APK.
+- Релиз: [v0.1.0](https://github.com/mirivlad/ChimePort/releases/tag/v0.1.0), Docker `ghcr.io/mirivlad/chimeport:v0.1.1`, Android alpha APK.
 - Для локального администратора добавлена команда создания интеграционного источника с приватным токен-файлом:
 
 ```bash
@@ -137,3 +137,8 @@ chimeport integration provision --username admin --source home-assistant \
 ```
 
 Токен сохраняется только в новом файле с правами 0600; команда не выводит секрет в консоль. После переноса в защищённые secrets другого приложения временный файл удалить. Для остальных проектов создавать собственные источники и токены.
+
+
+### Изменение каналов без сброса Android
+
+Android v0.8.1-alpha (APK из релиза v0.1.1) автоматически пересинхронизирует старую историю, если канал был удалён или объединён на сервере. Достаточно открыть приложение и обновить сообщения. Данные приложения и авторизацию очищать не нужно.
