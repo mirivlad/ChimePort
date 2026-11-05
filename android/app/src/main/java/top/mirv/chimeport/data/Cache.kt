@@ -126,6 +126,20 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
         } finally { db.endTransaction() }
     }
 
+    /**
+     * After a successful full re-sync, discard only local records whose channels
+     * no longer exist on the server. Current-channel history and read state stay intact.
+     */
+    @Synchronized
+    fun removeMessagesFromDeletedChannels(serverId: String, liveSlugs: Set<String>) {
+        if (liveSlugs.isEmpty()) return
+        val placeholders = liveSlugs.joinToString(",") { "?" }
+        val args = (listOf(serverId) + liveSlugs.toList()).toTypedArray()
+        writableDatabase.delete(
+            "messages", "server_id=? AND channel_slug NOT IN ($placeholders)", args
+        )
+    }
+
     @Synchronized
     fun applyPage(serverId: String, page: Page) {
         val db = writableDatabase

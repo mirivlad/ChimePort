@@ -22,8 +22,15 @@ object ServerSync {
             val known = cache.messages().asSequence()
                 .filter { it.serverId == server.id }.map { it.id }.toMutableSet()
             val added = mutableListOf<Notice>()
-            cache.replaceChannels(server.id, Api.channels(server))
-            var cursor = server.cursor
+            val liveChannels = Api.channels(server)
+            val liveSlugs = liveChannels.map { it.slug }.toSet()
+            val cachedSlugs = cache.messages().asSequence()
+                .filter { it.serverId == server.id }.map { it.channel }.toSet()
+            val needsReplay = ChannelCachePolicy.needsReplay(cachedSlugs, liveSlugs)
+            cache.replaceChannels(server.id, liveChannels)
+            // A channel can be renamed/consolidated server-side without changing
+            // message IDs. Replay the history so cached old slugs get updated.
+            var cursor = if (needsReplay) "" else server.cursor
             var pages = 0
             do {
                 val page = Api.messages(server, cursor)
@@ -38,6 +45,8 @@ object ServerSync {
                 if (!page.hasMore) break
             } while (pages < 500)
             if (pages >= 500) throw IOException("История слишком велика для одного прохода.")
+            // Only after the complete replay: never discard cached history on errors.
+            if (needsReplay) cache.removeMessagesFromDeletedChannels(server.id, liveSlugs)
             cache.markSynced(server.id)
             added
         }
