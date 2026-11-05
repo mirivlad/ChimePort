@@ -102,8 +102,8 @@
       const registration = await getRegistration();
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
-        await apiPush('subscriptions', 'DELETE', { endpoint: subscription.endpoint });
         await subscription.unsubscribe();
+        await apiPush('subscriptions', 'DELETE', { endpoint: subscription.endpoint });
       }
       setText('Web Push отключён на этом устройстве.');
       el('push-enable').hidden = false;
