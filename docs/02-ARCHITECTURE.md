@@ -1,6 +1,6 @@
 # 02. Архитектура
 
-**Статус:** описание текущей архитектуры сервера v0.1.2 и проектных расширений (обновлено 2026-11-05). Текущие API перечислены в [API v1](03-API.md), отличайте их от планов PWA/Web Push, `/devices` и дополнительных серверных модулей.
+**Статус:** описание текущей архитектуры сервера v0.1.3 и проектных расширений (обновлено 2026-11-05). Текущие API перечислены в [API v1](03-API.md), отличайте реализованные PWA/Web Push от планов `/devices` и дополнительных серверных модулей.
 
 ## 1. Общая схема
 
@@ -9,7 +9,7 @@ flowchart LR
     H[Home Assistant / scripts / monitoring] -->|HTTPS API + source token| A[ChimePort server]
     A --> D[(SQLite volume)]
     A -->|HTTPS + SSE| W[Web panel]
-    A -.->|План: Web Push| P[Будущая PWA]
+    A -->|Web Push через браузерный шлюз| P[PWA Service Worker]
     A <-->|HTTPS API + SSE / sync| M[Android multi-server client]
     B[Another independent ChimePort server] <-->|HTTPS API + SSE / sync| M
 ```
@@ -19,12 +19,12 @@ flowchart LR
 ## 2. Реализованный стек
 
 - **Сервер:** Go, стандартный HTTP-сервер, REST API v1 и SSE; статика (`index.html`, JavaScript и CSS) встроена в Go-бинарник через `embed`.
-- **Данные:** SQLite с WAL и миграциями (schema 3 в v0.1.2), постоянный том `/data`.
+- **Данные:** SQLite с WAL и миграциями (schema 4 в v0.1.3), постоянный том `/data`.
 - **Веб-панель:** обычные HTML/CSS/JavaScript без TypeScript SPA и отдельной Node-службы; три темы Ocean/Paper/Control.
 - **Android:** Kotlin, Jetpack Compose, Material 3, локальный кэш, синхронизация с несколькими независимыми серверами и фоновая доставка best effort.
 - **Развёртывание:** один контейнер ChimePort, внешний HTTPS reverse proxy; нет Redis, брокера и обязательного центрального сервиса.
 
-**Планы, не текущая реализация:** PWA/Service Worker, Web Push, серверные устройства и receipts, расширенные ACL и масштабирование. PostgreSQL и другие брокеры не требуются для текущей модели.
+**Планы, не текущая реализация:** серверные устройства и receipts, расширенные ACL и масштабирование. PostgreSQL и другие брокеры не требуются для текущей модели.
 
 ## 3. Логические модули сервера
 
@@ -39,7 +39,7 @@ flowchart LR
 
 ## 4. Данные: фактическая схема и проектные расширения
 
-Фактически в SQLite v3 есть таблицы `instance`, `users`, `sessions`, `channels`, `sources`, `source_tokens`, `token_channels`, `messages`, `idempotency`, `read_states`, `publication_windows`, `retention_watermarks`. Названия и столбцы следует сверять с `server/internal/app/store.go` при миграциях.
+Фактически в SQLite v4 есть таблицы `instance`, `users`, `sessions`, `channels`, `sources`, `source_tokens`, `token_channels`, `messages`, `idempotency`, `read_states`, `publication_windows`, `retention_watermarks`, `webpush_subscriptions`. Названия и столбцы следует сверять с `server/internal/app/store.go` при миграциях.
 
 Таблица ниже сохраняется как **первоначальный проект модели**, а не описание существующей схемы: например, отдельные `subscriptions`, `devices`, `device_delivery`, `web_push_subscriptions` сейчас не созданы.
 
@@ -67,7 +67,7 @@ ID серверных сообщений: UUIDv7/ULID либо числовая 
 2. Сервер проверяет токен, канал и квоты, валидирует поля, проверяет `Idempotency-Key`.
 3. В одной транзакции записывает сообщение и ключ идемпотентности.
 4. **Только после успешного commit** отвечает `201 Created` с ID; повтор с тем же ключом и телом возвращает существующий результат.
-5. После commit сервер сигнализирует активным SSE-клиентам; Web Push — будущая функция.
+5. После commit сервер сигнализирует активным SSE-клиентам; после этого асинхронно отправляет Web Push подписчикам.
 6. Клиент получает полные данные или запрашивает их через sync API.
 
 Если доставка wake-up не удалась, хранилище сохраняет сообщение. Если сервер упал после commit, но до ответа, повтор по идемпотентному ключу не создаёт дубль.
@@ -94,6 +94,6 @@ ID серверных сообщений: UUIDv7/ULID либо числовая 
 
 Первый релиз — одна инсталляция, один процесс записи, SQLite volume. Не заявлять «горизонтальное масштабирование» без распределённого хранения и брокера. Миграции версионируются, перед потенциально разрушительными обновлениями требуется backup. Встроенная диагностика должна показывать версию схемы, размер базы, задержки синхронизации и время последней успешной доставки (без обещаний состояния ОС).
 
-## Подготовка M3 (не часть текущего Docker v0.1.2)
+## Реализация M3 в v0.1.3
 
-Ветка PWA/Web Push добавляет Service Worker/manifest, таблицу SQLite schema 4 для веб-подписок, VAPID-ключи в таблице instance (приватная часть шифруется token-key), push после commit и ограниченный HTTP клиент только к браузерным шлюзам. [Описание M3](16-PWA-WEBPUSH.md).
+Релиз PWA/Web Push добавляет Service Worker/manifest, таблицу SQLite schema 4 для веб-подписок, VAPID-ключи в таблице instance (приватная часть шифруется token-key), push после commit и ограниченный HTTP клиент только к браузерным шлюзам. [Описание M3](16-PWA-WEBPUSH.md).
