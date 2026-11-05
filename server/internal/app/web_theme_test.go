@@ -9,9 +9,9 @@ import (
 
 func TestWebThemeAssets(t *testing.T) {
 	tests := []struct {
-		path      string
-		mime      string
-		contains  []string
+		path     string
+		mime     string
+		contains []string
 	}{
 		{"/", "text/html; charset=utf-8", []string{"/theme.js", "/themes.css", "/chimeport-icon.svg", "id=\"theme-select\"", "Примеры отправки"}},
 		{"/examples", "text/html; charset=utf-8", []string{"/theme.js", "/themes.css", "/chimeport-icon.svg", "id=\"theme-select\""}},
