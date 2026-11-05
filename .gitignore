@@ -13,3 +13,6 @@
 secrets.yaml
 *.keystore
 *.jks
+
+# Local Go build output
+server/chimeport

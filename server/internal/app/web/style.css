@@ -166,3 +166,13 @@ input:focus, textarea:focus, select:focus { border-color: #81baf3; outline: 1px 
   .examples-link { font-size: .82rem; }
   .example-card { padding: 15px; }
 }
+
+/* Installed web app / push settings; uses palette tokens from every theme. */
+.settings-stack { display: grid; gap: 16px; max-width: 900px; }
+.settings-stack .panel { display: grid; gap: 12px; }
+.settings-stack .panel h2 { margin: 0; }
+.settings-stack .hint, .settings-stack .small-note { margin: 0; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.settings-stack button { width: fit-content; }
+.message-target { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 520px) { .settings-actions button { width: 100%; } }

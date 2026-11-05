@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "ChimePort — уведомления",
+  "short_name": "ChimePort",
+  "description": "Ваш собственный центр уведомлений",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "ru",
+  "background_color": "#0b1828",
+  "theme_color": "#0b1828",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -31,6 +31,8 @@ jobs:
         run: |
           node --check internal/app/web/app.js
           node --check internal/app/web/examples.js
+          node --check internal/app/web/push.js
+          node --check internal/app/web/sw.js
       - name: Test
         run: go test -race ./...
       - name: Vet

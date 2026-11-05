@@ -636,6 +636,7 @@ func (a *App) publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.signal(ownerID, messageID)
+	a.queueWebPush(ownerID, messageID, in.Title, in.Body, in.Channel, in.Priority)
 	w.Header().Set("Location", "/api/v1/messages/"+strconv.FormatInt(messageID, 10))
 	respond(w, 201, map[string]any{"id": strconv.FormatInt(messageID, 10), "channel": in.Channel, "created_at": created, "stored": true})
 }
