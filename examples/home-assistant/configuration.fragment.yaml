@@ -1,0 +1,17 @@
+# Добавьте этот блок в существующий configuration.yaml.
+# Домен notify.example.org вымышленный и предназначен только для примера.
+rest_command:
+  chimeport_publish:
+    url: "https://notify.example.org/api/v1/messages"
+    method: post
+    timeout: 10
+    content_type: "application/json"
+    headers:
+      Authorization: !secret chimeport_bearer
+    payload: >-
+      {{ dict(
+          channel=channel,
+          title=title,
+          body=message,
+          priority=priority | default('normal')
+      ) | to_json }}

@@ -1,0 +1,141 @@
+# Примеры для Home Assistant. Замените entity_id своими сущностями.
+# При добавлении к существующей автоматизации НЕ удаляйте её действия Telegram!
+#
+# В инструментах разработчика → Действия → YAML можно проверить интеграцию:
+# action: rest_command.chimeport_publish
+# data:
+#   channel: home/door
+#   title: Проверка ChimePort
+#   message: Тест из Home Assistant
+#   priority: normal
+
+- alias: "ChimePort — дверь открыта"
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.front_door
+      to: "on"
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/door
+        title: "Входная дверь"
+        message: "Открыта"
+        priority: high
+
+- alias: "ChimePort — дверь закрыта"
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.front_door
+      to: "off"
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/door
+        title: "Входная дверь"
+        message: "Закрыта"
+        priority: normal
+
+- alias: "ChimePort — дверь открыта пять минут"
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.front_door
+      to: "on"
+      for: "00:05:00"
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/door
+        title: "Входная дверь"
+        message: "Открыта дольше пяти минут"
+        priority: urgent
+
+- alias: "ChimePort — температура выше 30 °C"
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.living_room_temperature
+      above: 30
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/climate
+        title: "Жарко в комнате"
+        message: "Температура: {{ states('sensor.living_room_temperature') }} °C"
+        priority: high
+
+- alias: "ChimePort — температура ниже 15 °C"
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.living_room_temperature
+      below: 15
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/climate
+        title: "Холодно в комнате"
+        message: "Температура: {{ states('sensor.living_room_temperature') }} °C"
+        priority: high
+
+- alias: "ChimePort — батарея датчика разряжена"
+  triggers:
+    - trigger: numeric_state
+      entity_id: sensor.front_door_battery
+      below: 20
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/sensors
+        title: "Батарея датчика двери"
+        message: "Заряд: {{ states('sensor.front_door_battery') }}%"
+        priority: high
+
+- alias: "ChimePort — климат каждые 4 часа"
+  triggers:
+    - trigger: time_pattern
+      hours: "/4"
+      minutes: "30"
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/climate
+        title: "Климат в доме"
+        message: "Температура {{ states('sensor.living_room_temperature') }} °C"
+        priority: normal
+
+- alias: "ChimePort — HA запущен"
+  triggers:
+    - trigger: homeassistant
+      event: start
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/system
+        title: "Home Assistant"
+        message: "Запущен"
+        priority: normal
+
+- alias: "ChimePort — HA останавливается"
+  triggers:
+    - trigger: homeassistant
+      event: shutdown
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/system
+        title: "Home Assistant"
+        message: "Останавливается"
+        priority: high
+
+- alias: "ChimePort — погода каждые 4 часа"
+  triggers:
+    - trigger: time_pattern
+      hours: "/4"
+      minutes: "20"
+  actions:
+    - action: rest_command.chimeport_publish
+      data:
+        channel: home/weather
+        title: "Погода"
+        message: >-
+          Температура: {{ state_attr('weather.home', 'temperature') }} °C;
+          влажность: {{ state_attr('weather.home', 'humidity') }}%
+        priority: normal

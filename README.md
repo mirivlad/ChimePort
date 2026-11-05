@@ -66,7 +66,7 @@ curl -X POST 'https://chime.mirv.top/api/v1/messages' \
 | [Дорожная карта](docs/07-ROADMAP.md) | Этапы, критерии приёмки, тесты |
 | [Решения](docs/08-DECISIONS.md) | Технические предложения и открытые вопросы |
 | [Спецификация UI](docs/09-UX.md) | Web, Android, мультисерверность |
-| [Интеграция HA](docs/10-HOME-ASSISTANT.md) | Замена Telegram-вызова на REST |
+| [Интеграция HA](docs/10-HOME-ASSISTANT.md) | Параллельная отправка вместе с Telegram, [готовый пример](examples/home-assistant/README.md) |
 | [Интеграции после релиза](docs/14-INTEGRATIONS-PLAN.md) | Home Assistant, MirMon и другие сервисы |
 | [Требования к агентам](AGENTS.md) | Как вносить изменения без нарушения концепции |
 
