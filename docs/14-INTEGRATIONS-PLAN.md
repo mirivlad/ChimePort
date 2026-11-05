@@ -35,3 +35,32 @@
 ## Граница старта
 
 Интеграции начинаем **после релиза** с выбранной лицензией, актуальным README, проверенной миграцией SQLite v3, backup/restore и готовыми инструкциями обновления. На текущем этапе никаких изменений в реальных автоматизациях или конфигурациях MirMon.
+
+## Home Assistant: рекомендуемая конфигурация
+
+В `configuration.yaml` добавьте:
+
+```yaml
+rest_command:
+  chimeport_publish:
+    url: "https://chime.mirv.top/api/v1/messages"
+    method: post
+    content_type: "application/json"
+    headers:
+      Authorization: !secret chimeport_bearer
+    payload: >-
+      {{ dict(channel=channel, title=title, body=message, priority=priority | default('normal')) | to_json }}
+```
+
+В `secrets.yaml` сохранить `chimeport_bearer: "Bearer cp_t_..."` (не коммитить токен). В автоматизации:
+
+```yaml
+- action: rest_command.chimeport_publish
+  data:
+    channel: home/door
+    title: Входная дверь
+    message: Открыта
+    priority: high
+```
+
+Пока проверяется ChimePort, Telegram остаётся вторым действием.
