@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"crypto/elliptic"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -339,6 +341,32 @@ func trimPushText(value string, max int) string {
 	return value
 }
 
+// Classify failures without logging the full push endpoint URL (a bearer secret).
+func webPushErrorClass(err error) string {
+	var authority x509.UnknownAuthorityError
+	var invalid x509.CertificateInvalidError
+	var tlsVerify *tls.CertificateVerificationError
+	var dnsErr *net.DNSError
+	var networkErr *net.OpError
+	var transportErr net.Error
+	switch {
+	case errors.As(err, &authority):
+		return "tls_unknown_authority"
+	case errors.As(err, &invalid), errors.As(err, &tlsVerify):
+		return "tls_verify_failed"
+	case errors.As(err, &dnsErr):
+		return "dns_error"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	case errors.As(err, &transportErr) && transportErr.Timeout():
+		return "network_timeout"
+	case errors.As(err, &networkErr):
+		return "network_error"
+	default:
+		return "other_error"
+	}
+}
+
 func (a *App) deliverWebPush(userID, messageID int64, title, body, channel, priority string) {
 	rows, err := a.Store.DB.Query(
 		"SELECT w.id,w.endpoint,w.p256dh,w.auth FROM webpush_subscriptions w JOIN sessions s ON s.id=w.session_id JOIN users u ON u.id=w.user_id WHERE w.user_id=? AND u.disabled=0 ORDER BY w.id LIMIT ?",
@@ -384,7 +412,7 @@ func (a *App) deliverWebPush(userID, messageID int64, title, body, channel, prio
 		status, sendErr := a.pushSend(ctx, payload, &target.Subscription)
 		cancel()
 		if sendErr != nil {
-			slog.Warn("web push delivery failed", "subscription_id", target.ID)
+			slog.Warn("web push delivery failed", "subscription_id", target.ID, "error_class", webPushErrorClass(sendErr))
 			continue
 		}
 		if status == 404 || status == 410 {
