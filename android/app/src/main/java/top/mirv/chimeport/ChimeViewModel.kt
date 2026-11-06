@@ -335,8 +335,7 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                     val scoped = if (trusted) InstanceInfo(Api.scopedInstanceId(fresh.id, origin), fresh.name)
                                  else fresh
                     val account = cache.upsertAccount(delivery, scoped, login,
-                        label.ifBlank { origin.removePrefix("https://") },
-                        if (trusted) "tms" else "chimeport", if (trusted) origin else "")
+                        label.ifBlank { origin.removePrefix("https://") }, if (trusted) origin else "")
                     ServerSync.refresh(cache, account.id)
                 }
             }
@@ -448,14 +447,14 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                     if (Api.actualInstanceId(account) != account.instanceId) {
                         throw IOException("Это другой сервер. Удалите подключение и добавьте новый адрес.")
                     }
-                    if (account.kind == "tms" && Api.discoverTms(account.issuerOrigin).delivery != account.origin)
+                    if (account.providerOrigin.isNotEmpty() && Api.discoverTms(account.providerOrigin).delivery != account.origin)
                         throw IOException("Сервер TMS изменил адрес ChimePort.")
-                    val session = if (account.kind == "tms")
-                        Api.loginViaTms(account.issuerOrigin, account.origin, account.username, password)
+                    val session = if (account.providerOrigin.isNotEmpty())
+                        Api.loginViaTms(account.providerOrigin, account.origin, account.username, password)
                         else Api.login(account.origin, account.username, password)
                     if (session.userId != account.userId) throw IOException("Это другая учётная запись.")
                     val updated = cache.upsertAccount(account.origin, InstanceInfo(account.instanceId, "ChimePort"),
-                        session, account.label, account.kind, account.issuerOrigin)
+                        session, account.label, account.providerOrigin)
                     ServerSync.refresh(cache, updated.id)
                 }
             }

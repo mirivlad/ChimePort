@@ -68,7 +68,7 @@ fun ServersScreen(state: AppState, model: ChimeViewModel, modifier: Modifier = M
                             Column(Modifier.weight(1f)) {
                                 Text(server.label, style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold)
-                                Text(if (server.kind == "tms") server.issuerOrigin else server.origin,
+                                Text(if (server.providerOrigin.isNotEmpty()) server.providerOrigin else server.origin,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }

@@ -100,7 +100,7 @@ object Api {
 
     fun actualInstanceId(server: ServerAccount): String {
         val actual = probe(server.origin).id
-        return if (server.kind == "tms") scopedInstanceId(actual, server.issuerOrigin) else actual
+        return if (server.providerOrigin.isNotEmpty()) scopedInstanceId(actual, server.providerOrigin) else actual
     }
 
     /**
@@ -143,9 +143,9 @@ object Api {
     }
 
     fun channels(server: ServerAccount): List<ChannelInfo> {
-        if (server.kind == "tms") {
+        if (server.providerOrigin.isNotEmpty()) {
             val info = call(server.origin, "/api/v1/external/info", server.token)
-            if (info.optString("origin") != server.issuerOrigin) {
+            if (info.optString("origin") != server.providerOrigin) {
                 throw IOException("Несовпадение привязки TMS к сервису уведомлений.")
             }
             val slug = info.getString("application")
@@ -159,7 +159,7 @@ object Api {
     }
 
     fun messages(server: ServerAccount, cursor: String): Page {
-        val path = (if (server.kind == "tms") "/api/v1/external/messages?limit=200"
+        val path = (if (server.providerOrigin.isNotEmpty()) "/api/v1/external/messages?limit=200"
                     else "/api/v1/messages?limit=200") +
             if (cursor.isNotBlank()) "&after=" + java.net.URLEncoder.encode(cursor, "UTF-8") else ""
         val data = call(server.origin, path, server.token)
@@ -180,18 +180,18 @@ object Api {
 
     fun read(server: ServerAccount, id: String) {
         require(id.all { it.isDigit() }) { "Неверный идентификатор сообщения" }
-        call(server.origin, if (server.kind == "tms") "/api/v1/external/messages/$id/read"
+        call(server.origin, if (server.providerOrigin.isNotEmpty()) "/api/v1/external/messages/$id/read"
              else "/api/v1/messages/$id/read", server.token, JSONObject())
     }
 
     fun unread(server: ServerAccount, id: String) {
         require(id.isNotEmpty() && id.all { it.isDigit() }) { "Неверный идентификатор сообщения" }
-        call(server.origin, if (server.kind == "tms") "/api/v1/external/messages/$id/read"
+        call(server.origin, if (server.providerOrigin.isNotEmpty()) "/api/v1/external/messages/$id/read"
              else "/api/v1/messages/$id/read", server.token, method = "DELETE")
     }
 
     fun logout(server: ServerAccount) {
-        call(server.origin, if (server.kind == "tms") "/api/v1/external/logout"
+        call(server.origin, if (server.providerOrigin.isNotEmpty()) "/api/v1/external/logout"
              else "/api/v1/auth/logout", server.token, JSONObject())
     }
 }

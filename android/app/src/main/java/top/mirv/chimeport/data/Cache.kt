@@ -74,7 +74,7 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
                 result += ServerAccount(
                     c.getString(0), c.getString(1), c.getString(2), c.getString(3),
                     c.getString(4), c.getLong(5), token, c.getString(7), c.getLong(8),
-                    c.getString(9), c.getString(10), c.getString(9)
+                    c.getString(9)
                 )
             }
         }
@@ -98,8 +98,6 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
             put("encrypted_token", Crypto.encrypt(session.token))
             put("cursor", existing?.cursor ?: "")
             put("last_sync", existing?.lastSync ?: 0L)
-            put("kind", kind)
-            put("issuer_origin", issuerOrigin)
             put("provider_origin", providerOrigin)
         }
         if (existing == null) writableDatabase.insertOrThrow("accounts", null, values)
