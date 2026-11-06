@@ -16,7 +16,7 @@ object ServerSync {
             val server = cache.servers().firstOrNull { it.id == serverId }
                 ?: return@withLock emptyList()
             if (server.token.isEmpty()) throw IOException("Нужен повторный вход в " + server.label)
-            if (Api.probe(server.origin).id != server.instanceId) {
+            if (Api.actualInstanceId(server) != server.instanceId) {
                 throw IOException("Идентификатор сервера изменился; история не объединена.")
             }
             val known = cache.messages().asSequence()

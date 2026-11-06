@@ -89,13 +89,14 @@ fun WelcomeScreen(state: AppState, model: ChimeViewModel) {
                 verticalArrangement = Arrangement.spacedBy(15.dp)
             ) {
                 Text(
-                    if (state.probed == null) "Подключить свой сервер" else "Войти в аккаунт",
+                    if (state.probed == null) "Подключить свой сервер" else
+                        if (state.probedKind == "tms") "Вход через TMS" else "Войти в аккаунт",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 if (state.probed == null) {
                     Text(
-                        "ChimePort работает на вашем сервере. Никаких общих облачных аккаунтов.",
+                        "Введите адрес сервера ChimePort или TMS. Для TMS отдельная учётная запись ChimePort не нужна.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -130,7 +131,7 @@ fun WelcomeScreen(state: AppState, model: ChimeViewModel) {
                                 tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("Сервер найден", fontWeight = FontWeight.Bold)
+                                Text(if (state.probedKind == "tms") "Сервер TMS найден" else "Сервер найден", fontWeight = FontWeight.Bold)
                                 Text(
                                     state.probedOrigin,
                                     style = MaterialTheme.typography.bodySmall
@@ -166,7 +167,7 @@ fun WelcomeScreen(state: AppState, model: ChimeViewModel) {
                             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(10.dp))
                         }
-                        Text("Войти в ChimePort")
+                        Text(if (state.probedKind == "tms") "Войти через TMS" else "Войти в ChimePort")
                     }
                     TextButton(onClick = model::clearProbe) { Text("Изменить адрес сервера") }
                 }

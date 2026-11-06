@@ -270,10 +270,10 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
     ) } }
     fun dismissMessage() { mutable.update { it.copy(message = null) } }
     fun openAdd() {
-        mutable.update { it.copy(addingServer = true, probed = null, probedOrigin = "", loginError = null) }
+        mutable.update { it.copy(addingServer = true, probed = null, probedOrigin = "", probedKind = "chimeport", probedDelivery = "", loginError = null) }
     }
-    fun cancelAdd() { mutable.update { it.copy(addingServer = false, probed = null, loginError = null) } }
-    fun clearProbe() { mutable.update { it.copy(probed = null, loginError = null) } }
+    fun cancelAdd() { mutable.update { it.copy(addingServer = false, probed = null, probedKind = "chimeport", probedDelivery = "", loginError = null) } }
+    fun clearProbe() { mutable.update { it.copy(probed = null, probedKind = "chimeport", probedDelivery = "", loginError = null) } }
 
     fun theme(choice: ThemeChoice) {
         cache.setTheme(choice)
@@ -281,17 +281,28 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun verifyServer(raw: String) {
-        mutable.update { it.copy(checking = true, probed = null, loginError = null) }
+        mutable.update { it.copy(checking = true, probed = null, probedKind = "chimeport", probedDelivery = "", loginError = null) }
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
                     val origin = Api.normalizeOrigin(raw)
-                    origin to Api.probe(origin)
+                    try {
+                        val found = Api.probe(origin)
+                        Triple(origin, found, Api.TrustedDiscovery("", ""))
+                    } catch (_: Exception) {
+                        val discovered = Api.discoverTms(origin)
+                        val found = Api.probe(discovered.delivery)
+                        Triple(origin, found, discovered)
+                    }
                 }
             }
             mutable.update { s ->
                 result.fold(
-                    onSuccess = { (origin, instance) -> s.copy(checking = false, probed = instance, probedOrigin = origin) },
+                    onSuccess = { (origin, instance, discovery) -> s.copy(
+                        checking = false, probed = instance, probedOrigin = origin,
+                        probedKind = if (discovery.issuer.isNotEmpty()) "tms" else "chimeport",
+                        probedDelivery = discovery.delivery
+                    ) },
                     onFailure = { e -> s.copy(checking = false, loginError = describe(e)) }
                 )
             }
@@ -311,11 +322,21 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
                     // Always verify again before handing credentials to this origin.
-                    val fresh = Api.probe(origin)
+                    val trusted = current.probedKind == "tms"
+                    val delivery = if (trusted) current.probedDelivery else origin
+                    if (trusted) {
+                        val discovery = Api.discoverTms(origin)
+                        if (discovery.delivery != delivery) throw IOException("TMS изменил адрес ChimePort.")
+                    }
+                    val fresh = Api.probe(delivery)
                     if (fresh.id != instance.id) throw IOException("Сервер изменил идентификатор. Проверьте адрес.")
-                    val login = Api.login(origin, username, password)
-                    val account = cache.upsertAccount(origin, fresh, login,
-                        label.ifBlank { origin.removePrefix("https://") })
+                    val login = if (trusted) Api.loginViaTms(origin, delivery, username, password)
+                                else Api.login(origin, username, password)
+                    val scoped = if (trusted) InstanceInfo(Api.scopedInstanceId(fresh.id, origin), fresh.name)
+                                 else fresh
+                    val account = cache.upsertAccount(delivery, scoped, login,
+                        label.ifBlank { origin.removePrefix("https://") },
+                        if (trusted) "tms" else "chimeport", if (trusted) origin else "")
                     ServerSync.refresh(cache, account.id)
                 }
             }
@@ -329,8 +350,10 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
                 // later sync error keeps the account and its local history instead.
                 reload()
                 val saved = cache.servers().any {
-                    it.origin == origin && it.instanceId == instance.id &&
-                        it.username == username.trim()
+                    val expectedId = if (current.probedKind == "tms")
+                        Api.scopedInstanceId(instance.id, origin) else instance.id
+                    it.origin == (if (current.probedKind == "tms") current.probedDelivery else origin) &&
+                        it.instanceId == expectedId && it.username == username.trim()
                 }
                 mutable.update {
                     it.copy(
@@ -422,12 +445,17 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    if (Api.probe(account.origin).id != account.instanceId) {
+                    if (Api.actualInstanceId(account) != account.instanceId) {
                         throw IOException("Это другой сервер. Удалите подключение и добавьте новый адрес.")
                     }
-                    val session = Api.login(account.origin, account.username, password)
+                    if (account.kind == "tms" && Api.discoverTms(account.issuerOrigin).delivery != account.origin)
+                        throw IOException("Сервер TMS изменил адрес ChimePort.")
+                    val session = if (account.kind == "tms")
+                        Api.loginViaTms(account.issuerOrigin, account.origin, account.username, password)
+                        else Api.login(account.origin, account.username, password)
                     if (session.userId != account.userId) throw IOException("Это другая учётная запись.")
-                    val updated = cache.upsertAccount(account.origin, InstanceInfo(account.instanceId, "ChimePort"), session, account.label)
+                    val updated = cache.upsertAccount(account.origin, InstanceInfo(account.instanceId, "ChimePort"),
+                        session, account.label, account.kind, account.issuerOrigin)
                     ServerSync.refresh(cache, updated.id)
                 }
             }

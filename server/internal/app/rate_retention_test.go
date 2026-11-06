@@ -177,7 +177,7 @@ func TestUpgradeV2ToV4(t *testing.T) {
 	}
 	defer upgraded.DB.Close()
 	var version int
-	if err := upgraded.DB.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 4 {
+	if err := upgraded.DB.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 5 {
 		t.Fatalf("unexpected schema %d: %v", version, err)
 	}
 }

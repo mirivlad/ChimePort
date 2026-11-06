@@ -208,7 +208,13 @@ func retentionWorker(ctx context.Context, store *app.Store, days int) {
 				return
 			}
 			total += n
-			if n < 200 {
+			externalCount, externalErr := store.PruneExternalExpired(ctx, days, 200)
+			if externalErr != nil {
+				slog.Error("External retention cleanup failed", "error", externalErr)
+				return
+			}
+			total += externalCount
+			if n < 200 && externalCount < 200 {
 				break
 			}
 			select {

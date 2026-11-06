@@ -9,7 +9,9 @@ data class ServerAccount(
     val userId: Long,
     val token: String,
     val cursor: String,
-    val lastSync: Long
+    val lastSync: Long,
+    // Empty for direct ChimePort accounts; TMS origin for delegated accounts.
+    val providerOrigin: String = ""
 )
 
 data class ChannelInfo(
@@ -38,7 +40,12 @@ data class Notice(
     val key: String get() = "$serverId:$id"
 }
 
-data class InstanceInfo(val id: String, val name: String)
+data class InstanceInfo(
+    val id: String,
+    val name: String,
+    val providerOrigin: String = "",
+    val serviceOrigin: String = ""
+)
 data class SessionInfo(val token: String, val username: String, val userId: Long)
 data class Page(val items: List<Notice>, val nextCursor: String, val hasMore: Boolean)
 
@@ -56,6 +63,8 @@ data class AppState(
     val checking: Boolean = false,
     val probed: InstanceInfo? = null,
     val probedOrigin: String = "",
+    val probedKind: String = "chimeport",
+    val probedDelivery: String = "",
     val loginError: String? = null,
     val syncError: String? = null,
     val message: String? = null,

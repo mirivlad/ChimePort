@@ -10,7 +10,7 @@ import java.util.UUID
  * App-private offline cache. The primary key is local server-connection ID + message ID:
  * equal message IDs on different ChimePort instances cannot collide.
  */
-class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", null, 1) {
+class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", null, 2) {
     private val settings = context.getSharedPreferences("chimeport_preferences", Context.MODE_PRIVATE)
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -24,6 +24,7 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
               label TEXT NOT NULL, username TEXT NOT NULL, user_id INTEGER NOT NULL,
               encrypted_token TEXT NOT NULL, cursor TEXT NOT NULL DEFAULT '',
               last_sync INTEGER NOT NULL DEFAULT 0,
+              provider_origin TEXT NOT NULL DEFAULT '',
               UNIQUE(origin, instance_id, user_id)
             )
         """.trimIndent())
@@ -48,7 +49,9 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Version 1: future schema migrations will preserve data.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE accounts ADD COLUMN provider_origin TEXT NOT NULL DEFAULT ''")
+        }
     }
 
     fun theme(): ThemeChoice = runCatching {
@@ -63,14 +66,15 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
     fun servers(): List<ServerAccount> {
         val result = mutableListOf<ServerAccount>()
         readableDatabase.rawQuery(
-            "SELECT id,origin,instance_id,label,username,user_id,encrypted_token,cursor,last_sync FROM accounts ORDER BY label COLLATE NOCASE",
+            "SELECT id,origin,instance_id,label,username,user_id,encrypted_token,cursor,last_sync,provider_origin FROM accounts ORDER BY label COLLATE NOCASE",
             null
         ).use { c ->
             while (c.moveToNext()) {
                 val token = runCatching { Crypto.decrypt(c.getString(6)) }.getOrDefault("")
                 result += ServerAccount(
                     c.getString(0), c.getString(1), c.getString(2), c.getString(3),
-                    c.getString(4), c.getLong(5), token, c.getString(7), c.getLong(8)
+                    c.getString(4), c.getLong(5), token, c.getString(7), c.getLong(8),
+                    c.getString(9), c.getString(10), c.getString(9)
                 )
             }
         }
@@ -78,9 +82,10 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
     }
 
     @Synchronized
-    fun upsertAccount(origin: String, instance: InstanceInfo, session: SessionInfo, label: String): ServerAccount {
+    fun upsertAccount(origin: String, instance: InstanceInfo, session: SessionInfo, label: String, providerOrigin: String = ""): ServerAccount {
         val existing = servers().firstOrNull {
-            it.origin == origin && it.instanceId == instance.id && it.userId == session.userId
+            it.origin == origin && it.instanceId == instance.id && it.userId == session.userId &&
+                it.providerOrigin == providerOrigin
         }
         val id = existing?.id ?: UUID.randomUUID().toString()
         val values = ContentValues().apply {
@@ -93,6 +98,9 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
             put("encrypted_token", Crypto.encrypt(session.token))
             put("cursor", existing?.cursor ?: "")
             put("last_sync", existing?.lastSync ?: 0L)
+            put("kind", kind)
+            put("issuer_origin", issuerOrigin)
+            put("provider_origin", providerOrigin)
         }
         if (existing == null) writableDatabase.insertOrThrow("accounts", null, values)
         else writableDatabase.update("accounts", values, "id=?", arrayOf(id))

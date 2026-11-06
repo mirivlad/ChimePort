@@ -26,7 +26,7 @@ import (
 
 const (
 	FormatVersion          = 1
-	SupportedSchema        = 4
+	SupportedSchema        = 5
 	maxDatabaseBytes int64 = 64 << 30
 	maxManifestBytes int64 = 64 << 10
 )

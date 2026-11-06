@@ -29,7 +29,7 @@ class EventStream {
         onConnected: suspend () -> Unit,
         onMessage: suspend (String) -> Unit
     ) = withContext(Dispatchers.IO) {
-        val connection = (URL(account.origin + "/api/v1/events").openConnection() as HttpURLConnection).apply {
+        val connection = (URL(account.origin + if (account.providerOrigin.isNotEmpty()) "/api/v1/external/events" else "/api/v1/events").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12_000
             readTimeout = 75_000 // Server sends a keepalive comment every 25 seconds.
