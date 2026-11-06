@@ -1,6 +1,6 @@
 # ChimePort — резервное копирование и восстановление
 
-**Актуально для сервера v0.1.3 (2026-11-05).** Ниже показаны действия на Docker-хосте; Portainer управляет контейнером, но бэкап выполняется отдельным временным контейнером. Не удаляйте существующий том `/data`.
+**Актуально для сервера v0.1.4 (2026-11-05).** Ниже показаны действия на Docker-хосте; Portainer управляет контейнером, но бэкап выполняется отдельным временным контейнером. Не удаляйте существующий том `/data`.
 
 Статус: **команды обслуживания реализованы, веб-мастер восстановления ещё не создан**.
 Они запускаются через временный контейнер из Docker-хоста и работают даже при
@@ -49,7 +49,7 @@ sudo install -d -m 0700 -o 10001 -g 10001 /srv/chimeport/backups
 ~~~sh
 export CHIMEPORT_DATA_SOURCE=chimeport_chimeport_data
 export CHIMEPORT_BACKUP_DIR=/srv/chimeport/backups
-export CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.3
+export CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.4
 sh deploy/scripts/chimeport-backup.sh
 ~~~
 
@@ -66,7 +66,7 @@ Verified backup: /srv/chimeport/backups/chimeport-20261104T033000Z.tar.gz
 
 Для cron после проверки ручного запуска:
 ~~~cron
-0 3 * * * CHIMEPORT_DATA_SOURCE=chimeport_chimeport_data CHIMEPORT_BACKUP_DIR=/srv/chimeport/backups CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.3 /bin/sh /opt/chimeport/deploy/scripts/chimeport-backup.sh >> /var/log/chimeport-backup.log 2>&1
+0 3 * * * CHIMEPORT_DATA_SOURCE=chimeport_chimeport_data CHIMEPORT_BACKUP_DIR=/srv/chimeport/backups CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.4 /bin/sh /opt/chimeport/deploy/scripts/chimeport-backup.sh >> /var/log/chimeport-backup.log 2>&1
 ~~~
 
 Здесь /opt/chimeport — **пример** пути клона репозитория: укажите реальный
@@ -80,7 +80,7 @@ Verified backup: /srv/chimeport/backups/chimeport-20261104T033000Z.tar.gz
 docker run --rm --network none --user 10001:10001 \
   --security-opt no-new-privileges:true --cap-drop ALL \
   --mount type=bind,source=/srv/chimeport/backups,target=/backups,readonly \
-  ghcr.io/mirivlad/chimeport:v0.1.3 maintenance verify \
+  ghcr.io/mirivlad/chimeport:v0.1.4 maintenance verify \
   --archive /backups/chimeport-20261104T033000Z.tar.gz
 ~~~
 
@@ -124,7 +124,7 @@ docker run --rm --network none --user 10001:10001 \
   --security-opt no-new-privileges:true --cap-drop ALL \
   --mount type=bind,source=/srv/chimeport/backups,target=/backups,readonly \
   --mount type=bind,source=/srv/chimeport/restored-20261104,target=/data \
-  ghcr.io/mirivlad/chimeport:v0.1.3 maintenance restore \
+  ghcr.io/mirivlad/chimeport:v0.1.4 maintenance restore \
   --archive /backups/chimeport-20261104T033000Z.tar.gz \
   --data-dir /data \
   --expect-instance ВСТАВИТЬ_INSTANCE_ID_ИЗ_VERIFY

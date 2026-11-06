@@ -1,12 +1,12 @@
 # ChimePort: установка в Portainer
 
-**Актуально для сервера v0.1.3 (05.11.2026).** Веб-панель, Android alpha и PWA/Web Push доступны. Web Push требует HTTPS и разрешения браузера. Для установки нужен HTTPS reverse proxy; не выставляйте внутренний порт приложения в Интернет без TLS.
+**Актуально для сервера v0.1.4 (05.11.2026).** Веб-панель, Android alpha и PWA/Web Push доступны. Web Push требует HTTPS и разрешения браузера. Для установки нужен HTTPS reverse proxy; не выставляйте внутренний порт приложения в Интернет без TLS.
 
 ## 1. Подготовка
 
 1. Настройте доменное имя (например, `notify.example.org`) на IP вашего reverse proxy.
 2. Настройте корректный сертификат HTTPS в Caddy, Nginx или Traefik.
-3. Убедитесь, что Docker/Portainer может получить образ `ghcr.io/mirivlad/chimeport:v0.1.3` из GHCR.
+3. Убедитесь, что Docker/Portainer может получить образ `ghcr.io/mirivlad/chimeport:v0.1.4` из GHCR.
 4. Выделите постоянный Docker volume и предусмотрите **отдельное защищённое место** для резервных копий.
 
 GHCR иногда требует публичную видимость пакета или авторизацию Registry с правом `read:packages`. Для последующего отката используйте точную версию или неизменяемый digest.
@@ -22,7 +22,7 @@ GHCR иногда требует публичную видимость паке�
 | Repository reference | `refs/heads/main` |
 | Compose path | `deploy/compose.portainer.yaml` |
 | Environment | `CHIMEPORT_PUBLIC_URL=https://notify.example.org` |
-| Рекомендованная фиксация образа | `CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.3` |
+| Рекомендованная фиксация образа | `CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.4` |
 
 Нажмите **Deploy the stack**. Сервис запустится на `127.0.0.1:8080` Docker-хоста, данные — в именованном томе (`chimeport_chimeport_data` при таком названии стека). UID/GID контейнера: `10001`.
 
@@ -96,7 +96,7 @@ Android-клиент устанавливается из [релиза v0.1.1](h
 
 1. Создайте и **проверьте** архив командой `maintenance backup` / `maintenance verify` (см. [пошаговое руководство](13-BACKUP-RESTORE.md)).
 2. Зафиксируйте текущий образ, schema version и instance ID.
-3. Измените `CHIMEPORT_IMAGE` на опубликованную версию, например `ghcr.io/mirivlad/chimeport:v0.1.3`.
+3. Измените `CHIMEPORT_IMAGE` на опубликованную версию, например `ghcr.io/mirivlad/chimeport:v0.1.4`.
 4. В Portainer выберите **Update the stack** с получением свежего Git compose и **pull/redeploy image**.
 5. Проверьте `/health/ready`, вход, каналы, токены и тестовую отправку. **Не удаляйте volume.**
 
