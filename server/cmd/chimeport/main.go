@@ -101,6 +101,25 @@ func main() {
 			log.Fatal(err)
 		}
 		fmt.Printf("Integration provisioned: token id=%d, source=%s, channels=%s; secret saved privately at %s\\n", id, *source, *channels, *tokenOut)
+	case "trusted-app":
+		f := flag.NewFlagSet("trusted-app", flag.ExitOnError)
+		slug := f.String("slug", "", "Trusted application's permanent slug")
+		origin := f.String("origin", "", "Trusted application HTTPS origin")
+		tokenOut := f.String("token-out", "", "Absolute path to exclusive output inside /data")
+		_ = f.Parse(os.Args[2:])
+		if *slug == "" || *origin == "" || *tokenOut == "" || f.NArg() != 0 {
+			log.Fatal("usage: chimeport trusted-app --slug tms --origin https://tasks.example.org --token-out /data/tms-app-token")
+		}
+		store, err := app.OpenStore(dataDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer store.DB.Close()
+		id, err := store.ProvisionTrustedApplication(context.Background(), *slug, *origin, *tokenOut)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Trusted application registered: id=%d slug=%s; secret written privately to %s\n", id, *slug, *tokenOut)
 	case "bootstrap":
 		f := flag.NewFlagSet("bootstrap", flag.ExitOnError)
 		username := f.String("username", "admin", "First administrator username")
