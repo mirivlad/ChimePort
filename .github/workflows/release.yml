@@ -1,4 +1,4 @@
-name: Publish ChimePort v0.1.5
+name: Publish ChimePort v0.1.6
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish v0.1.5 server image (amd64/arm64)
+      - name: Publish v0.1.6 server image (amd64/arm64)
         uses: docker/build-push-action@v6
         with:
           context: ./server
@@ -41,11 +41,11 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/mirivlad/chimeport:v0.1.5
+            ghcr.io/mirivlad/chimeport:v0.1.6
             ghcr.io/mirivlad/chimeport:sha-${{ github.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/mirivlad/ChimePort
-            org.opencontainers.image.version=v0.1.5
+            org.opencontainers.image.version=v0.1.6
             org.opencontainers.image.licenses=AGPL-3.0-only
 
   release:
@@ -55,17 +55,17 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Create GitHub release v0.1.5
+      - name: Create GitHub release v0.1.6
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if gh release view v0.1.5 >/dev/null 2>&1; then
-            echo "Release v0.1.5 already exists; leaving the published release unchanged"
+          if gh release view v0.1.6 >/dev/null 2>&1; then
+            echo "Release v0.1.6 already exists; leaving the published release unchanged"
             exit 0
           fi
-          gh release create v0.1.5 \
+          gh release create v0.1.6 \
             --target "$GITHUB_SHA" \
-            --title "ChimePort v0.1.5" \
-            --notes-file docs/releases/v0.1.5.md \
+            --title "ChimePort v0.1.6" \
+            --notes-file docs/releases/v0.1.6.md \
             --latest
