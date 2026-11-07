@@ -20,6 +20,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import top.mirv.chimeport.data.ApiError
@@ -151,7 +152,8 @@ class BackgroundLiveService : Service() {
             }
             ConnectionDiagnostics.connecting(this, id)
             try {
-                streams.listen(server,
+                val ready = withContext(Dispatchers.IO) { Api.ensureFresh(cache,server) }
+                streams.listen(ready,
                     onConnected = {
                         failures = 0
                         ConnectionDiagnostics.connected(this@BackgroundLiveService, id)

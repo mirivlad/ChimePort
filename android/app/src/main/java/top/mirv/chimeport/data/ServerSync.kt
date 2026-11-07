@@ -13,8 +13,9 @@ object ServerSync {
 
     suspend fun refresh(cache: Cache, serverId: String): List<Notice> = withContext(Dispatchers.IO) {
         locks.getOrPut(serverId) { Mutex() }.withLock {
-            val server = cache.servers().firstOrNull { it.id == serverId }
+            val saved = cache.servers().firstOrNull { it.id == serverId }
                 ?: return@withLock emptyList()
+            val server = Api.ensureFresh(cache,saved)
             if (server.token.isEmpty()) throw IOException("Нужен повторный вход в " + server.label)
             if (Api.actualInstanceId(server) != server.instanceId) {
                 throw IOException("Идентификатор сервера изменился; история не объединена.")
@@ -33,7 +34,7 @@ object ServerSync {
             var cursor = if (needsReplay) "" else server.cursor
             var pages = 0
             do {
-                val page = Api.messages(server, cursor)
+                val page = Api.messages(Api.ensureFresh(cache,server), cursor)
                 page.items.forEach { if (known.add(it.id)) added.add(it) }
                 // Messages and cursor are committed atomically by Cache.applyPage().
                 cache.applyPage(server.id, page)

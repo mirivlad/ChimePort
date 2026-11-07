@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -37,6 +38,7 @@ func setup(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
+	api.externalValidate = func(ctx context.Context, app trustedApp, recipient, device string) (bool, error) { return true, nil }
 	handler = api.Handler()
 	t.Cleanup(func() { ts.Close(); store.DB.Close() })
 	return &harness{store: store, api: api, server: ts, tokens: map[string]string{}, dir: dir}

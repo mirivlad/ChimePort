@@ -74,41 +74,54 @@ func (s *Store) PruneExternalExpired(ctx context.Context, days, batchSize int) (
 	if days < 0 || batchSize <= 0 || batchSize > 900 {
 		return 0, fmt.Errorf("invalid retention days or batch size")
 	}
-	if days == 0 {
-		return 0, nil
-	}
 	cutoff := time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour).Format(time.RFC3339Nano)
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback()
-	rows, err := tx.QueryContext(ctx, "SELECT id FROM external_messages WHERE created_at<? ORDER BY id LIMIT ?", cutoff, batchSize)
-	if err != nil {
-		return 0, err
-	}
 	ids := []int64{}
-	for rows.Next() {
-		var id int64
-		if err = rows.Scan(&id); err != nil {
+	if days > 0 {
+		rows, err := tx.QueryContext(ctx, "SELECT id FROM external_messages WHERE created_at<? ORDER BY id LIMIT ?", cutoff, batchSize)
+		if err != nil {
+			return 0, err
+		}
+		for rows.Next() {
+			var id int64
+			if err = rows.Scan(&id); err != nil {
+				rows.Close()
+				return 0, err
+			}
+			ids = append(ids, id)
+		}
+		if err = rows.Err(); err != nil {
 			rows.Close()
 			return 0, err
 		}
-		ids = append(ids, id)
-	}
-	if err = rows.Err(); err != nil {
 		rows.Close()
-		return 0, err
-	}
-	rows.Close()
-	for _, id := range ids {
-		if _, err = tx.ExecContext(ctx, "DELETE FROM external_messages WHERE id=?", id); err != nil {
-			return 0, err
+		for _, id := range ids {
+			if _, err = tx.ExecContext(ctx, "DELETE FROM external_messages WHERE id=?", id); err != nil {
+				return 0, err
+			}
 		}
 	}
 	// Tickets cannot be exchanged after 90 seconds. Clear stale entries as
 	// part of the retention pass, even when no old messages were found.
 	if _, err = tx.ExecContext(ctx, "DELETE FROM external_tickets WHERE expires_at<?", now()); err != nil {
+		return 0, err
+	}
+	// Credential cleanup runs even when message retention is disabled.
+	// Active browser Web Push grants remain valid while TMS authorizes them.
+	if _, err = tx.ExecContext(ctx, "DELETE FROM external_sessions WHERE revoked_at IS NOT NULL AND revoked_at<?", time.Now().UTC().Add(-7*24*time.Hour).Format(time.RFC3339Nano)); err != nil {
+		return 0, err
+	}
+	if _, err = tx.ExecContext(ctx,
+		"DELETE FROM external_sessions WHERE refresh_expires_at<? AND id NOT IN (SELECT session_id FROM external_webpush)",
+		now()); err != nil {
+		return 0, err
+	}
+	if _, err = tx.ExecContext(ctx, "DELETE FROM external_used_refresh WHERE used_at<?",
+		time.Now().UTC().Add(-48*time.Hour).Format(time.RFC3339Nano)); err != nil {
 		return 0, err
 	}
 	if err = tx.Commit(); err != nil {

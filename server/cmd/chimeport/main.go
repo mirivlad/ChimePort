@@ -144,9 +144,8 @@ func main() {
 		server := &http.Server{Addr: getenv("CHIMEPORT_LISTEN_ADDR", ":8080"), Handler: api.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 20 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 * 1024}
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 		defer stop()
-		if retentionDays > 0 {
-			go retentionWorker(ctx, store, retentionDays)
-		}
+		// Device/ticket cleanup is always needed, even with unlimited message history.
+		go retentionWorker(ctx, store, retentionDays)
 		go func() {
 			<-ctx.Done()
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

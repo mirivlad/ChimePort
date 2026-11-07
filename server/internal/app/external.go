@@ -25,11 +25,14 @@ var verifierPattern = regexp.MustCompile("^[A-Za-z0-9._~-]{43,128}$")
 type trustedApp struct {
 	id           int64
 	slug, origin string
+	token        string
 }
 type trustedSession struct {
 	id        int64
 	app       trustedApp
 	recipient string
+	deviceID  string
+	tokenHash string
 }
 
 func validAppOrigin(value string) bool {
@@ -83,7 +86,12 @@ func (a *App) createExternalApp(w http.ResponseWriter, r *http.Request) {
 		a.err(w, err)
 		return
 	}
-	result, err := a.Store.DB.ExecContext(r.Context(), "INSERT INTO external_apps(slug,origin,token_hash,created_at) VALUES(?,?,?,?)", slug, origin, hash, now())
+	encrypted, err := a.Store.encryptToken(token)
+	if err != nil {
+		a.err(w, err)
+		return
+	}
+	result, err := a.Store.DB.ExecContext(r.Context(), "INSERT INTO external_apps(slug,origin,token_hash,token_encrypted,created_at) VALUES(?,?,?,?,?)", slug, origin, hash, encrypted, now())
 	if err != nil {
 		failure(w, 409, "application_exists", "Application already exists")
 		return
@@ -134,6 +142,7 @@ func (a *App) externalApp(w http.ResponseWriter, r *http.Request) (trustedApp, b
 	}
 	var app trustedApp
 	err := a.Store.DB.QueryRowContext(r.Context(), "SELECT id,slug,origin FROM external_apps WHERE token_hash=? AND disabled=0", digest(token)).Scan(&app.id, &app.slug, &app.origin)
+	app.token = token
 	if err != nil {
 		failure(w, 401, "unauthorized", "Invalid or revoked application token")
 		return trustedApp{}, false
@@ -146,13 +155,29 @@ func (a *App) externalSession(w http.ResponseWriter, r *http.Request) (trustedSe
 		failure(w, 401, "unauthorized", "Device session required")
 		return trustedSession{}, false
 	}
-	var s trustedSession
-	err := a.Store.DB.QueryRowContext(r.Context(), "SELECT s.id,a.id,a.slug,a.origin,s.recipient FROM external_sessions s JOIN external_apps a ON a.id=s.app_id WHERE s.token_hash=? AND s.expires_at>? AND a.disabled=0", digest(token), now()).Scan(&s.id, &s.app.id, &s.app.slug, &s.app.origin, &s.recipient)
+	var session trustedSession
+	var encrypted string
+	err := a.Store.DB.QueryRowContext(r.Context(),
+		"SELECT s.id,a.id,a.slug,a.origin,a.token_encrypted,s.recipient,s.device_id FROM external_sessions s JOIN external_apps a ON a.id=s.app_id WHERE s.token_hash=? AND s.expires_at>? AND s.refresh_expires_at>? AND s.revoked_at IS NULL AND a.disabled=0",
+		digest(token), now(), now()).Scan(&session.id, &session.app.id, &session.app.slug, &session.app.origin, &encrypted, &session.recipient, &session.deviceID)
 	if err != nil {
 		failure(w, 401, "unauthorized", "Invalid or expired device session")
 		return trustedSession{}, false
 	}
-	return s, true
+	session.tokenHash = digest(token)
+	session.app.token, err = a.Store.decryptToken(encrypted)
+	if err != nil {
+		a.err(w, err)
+		return trustedSession{}, false
+	}
+	if !a.verifyExternalDevice(w, r, session) {
+		return trustedSession{}, false
+	}
+	if _, err = a.Store.DB.ExecContext(r.Context(), "UPDATE external_sessions SET last_seen=? WHERE id=?", now(), session.id); err != nil {
+		a.err(w, err)
+		return trustedSession{}, false
+	}
+	return session, true
 }
 func (a *App) publishExternal(w http.ResponseWriter, r *http.Request) {
 	app, ok := a.externalApp(w, r)
@@ -262,9 +287,9 @@ func (a *App) createExternalTicket(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	recipient, challenge := in["recipient"], in["code_challenge"]
+	recipient, challenge, deviceID := in["recipient"], in["code_challenge"], in["device_id"]
 	bytes, err := base64.RawURLEncoding.DecodeString(challenge)
-	if !recipientPattern.MatchString(recipient) || err != nil || len(bytes) != 32 {
+	if !recipientPattern.MatchString(recipient) || !devicePattern.MatchString(deviceID) || err != nil || len(bytes) != 32 {
 		failure(w, 400, "invalid_ticket", "Recipient and PKCE S256 challenge required")
 		return
 	}
@@ -274,7 +299,7 @@ func (a *App) createExternalTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expires := time.Now().UTC().Add(90 * time.Second).Format(time.RFC3339Nano)
-	if _, err = a.Store.DB.ExecContext(r.Context(), "INSERT INTO external_tickets(ticket_hash,app_id,recipient,challenge,expires_at) VALUES(?,?,?,?,?)", hash, app.id, recipient, challenge, expires); err != nil {
+	if _, err = a.Store.DB.ExecContext(r.Context(), "INSERT INTO external_tickets(ticket_hash,app_id,recipient,device_id,challenge,expires_at) VALUES(?,?,?,?,?,?)", hash, app.id, recipient, deviceID, challenge, expires); err != nil {
 		a.err(w, err)
 		return
 	}
@@ -297,8 +322,9 @@ func (a *App) exchangeExternalTicket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	var appID int64
-	var recipient, expected string
-	err = tx.QueryRow("SELECT t.app_id,t.recipient,t.challenge FROM external_tickets t JOIN external_apps a ON a.id=t.app_id WHERE t.ticket_hash=? AND t.expires_at>? AND a.disabled=0", digest(ticket), now()).Scan(&appID, &recipient, &expected)
+	var recipient, deviceID, expected string
+	var origin, encrypted string
+	err = tx.QueryRow("SELECT t.app_id,t.recipient,t.device_id,t.challenge,a.origin,a.token_encrypted FROM external_tickets t JOIN external_apps a ON a.id=t.app_id WHERE t.ticket_hash=? AND t.expires_at>? AND a.disabled=0", digest(ticket), now()).Scan(&appID, &recipient, &deviceID, &expected, &origin, &encrypted)
 	if err != nil {
 		failure(w, 401, "invalid_ticket", "Invalid or expired ticket")
 		return
@@ -307,6 +333,15 @@ func (a *App) exchangeExternalTicket(w http.ResponseWriter, r *http.Request) {
 	computed := base64.RawURLEncoding.EncodeToString(sum[:])
 	if subtle.ConstantTimeCompare([]byte(computed), []byte(expected)) != 1 {
 		failure(w, 401, "invalid_ticket", "Invalid or expired ticket")
+		return
+	}
+	// Validate TMS account/device *before* consuming the one-use ticket.
+	appSecret, err := a.Store.decryptToken(encrypted)
+	if err != nil {
+		a.err(w, err)
+		return
+	}
+	if !a.verifyExternalIdentity(w, r, origin, appSecret, recipient, deviceID) {
 		return
 	}
 	result, err := tx.Exec("DELETE FROM external_tickets WHERE ticket_hash=?", digest(ticket))
@@ -319,13 +354,26 @@ func (a *App) exchangeExternalTicket(w http.ResponseWriter, r *http.Request) {
 		failure(w, 401, "invalid_ticket", "Ticket was redeemed")
 		return
 	}
-	session, hash, err := newSecret("cp_e_")
+	access, accessHash, err := newSecret("cp_e_")
 	if err != nil {
 		a.err(w, err)
 		return
 	}
-	expires := time.Now().UTC().Add(7 * 24 * time.Hour).Format(time.RFC3339Nano)
-	if _, err = tx.Exec("INSERT INTO external_sessions(app_id,recipient,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)", appID, recipient, hash, expires, now()); err != nil {
+	refresh, refreshHash, err := newSecret("cp_r_")
+	if err != nil {
+		a.err(w, err)
+		return
+	}
+	timestamp := time.Now().UTC()
+	accessExpiry := timestamp.Add(15 * time.Minute).Format(time.RFC3339Nano)
+	refreshExpiry := timestamp.Add(90 * 24 * time.Hour).Format(time.RFC3339Nano)
+	// Multiple logins for the same TMS device invalidate older sessions and
+	// their web push subscriptions. The device registry is authoritative in TMS.
+	if _, err = tx.Exec("DELETE FROM external_sessions WHERE app_id=? AND recipient=? AND device_id=?", appID, recipient, deviceID); err != nil {
+		a.err(w, err)
+		return
+	}
+	if _, err = tx.Exec("INSERT INTO external_sessions(app_id,recipient,device_id,token_hash,expires_at,refresh_hash,refresh_expires_at,created_at,last_seen) VALUES(?,?,?,?,?,?,?,?,?)", appID, recipient, deviceID, accessHash, accessExpiry, refreshHash, refreshExpiry, now(), now()); err != nil {
 		a.err(w, err)
 		return
 	}
@@ -333,7 +381,7 @@ func (a *App) exchangeExternalTicket(w http.ResponseWriter, r *http.Request) {
 		a.err(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"access_token": session, "token_type": "Bearer", "expires_in": 604800, "instance_id": a.Store.InstanceID})
+	respond(w, 200, map[string]any{"access_token": access, "refresh_token": refresh, "token_type": "Bearer", "expires_in": 900, "refresh_expires_in": 7776000, "instance_id": a.Store.InstanceID})
 }
 func (a *App) externalLogout(w http.ResponseWriter, r *http.Request) {
 	s, ok := a.externalSession(w, r)

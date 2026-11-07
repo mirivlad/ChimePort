@@ -87,15 +87,17 @@ func migrate(db *sql.DB) error {
 		}
 		defer tx.Rollback()
 		statements := []string{
-			"CREATE TABLE IF NOT EXISTS external_apps (id INTEGER PRIMARY KEY, slug TEXT NOT NULL UNIQUE, origin TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, disabled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)",
+			"CREATE TABLE IF NOT EXISTS external_apps (id INTEGER PRIMARY KEY, slug TEXT NOT NULL UNIQUE, origin TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, token_encrypted TEXT NOT NULL, disabled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)",
 			"CREATE TABLE IF NOT EXISTS external_messages (id INTEGER PRIMARY KEY, app_id INTEGER NOT NULL REFERENCES external_apps(id) ON DELETE CASCADE, recipient TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, priority TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)",
 			"CREATE INDEX IF NOT EXISTS external_messages_recipient_idx ON external_messages(app_id,recipient,id)",
 			"CREATE TABLE IF NOT EXISTS external_idempotency (app_id INTEGER NOT NULL REFERENCES external_apps(id) ON DELETE CASCADE, idem_key TEXT NOT NULL, payload_hash TEXT NOT NULL, message_id INTEGER NOT NULL REFERENCES external_messages(id) ON DELETE CASCADE, PRIMARY KEY(app_id,idem_key))",
-			"CREATE TABLE IF NOT EXISTS external_tickets (ticket_hash TEXT PRIMARY KEY, app_id INTEGER NOT NULL REFERENCES external_apps(id) ON DELETE CASCADE, recipient TEXT NOT NULL, challenge TEXT NOT NULL, expires_at TEXT NOT NULL)",
-			"CREATE TABLE IF NOT EXISTS external_sessions (id INTEGER PRIMARY KEY, app_id INTEGER NOT NULL REFERENCES external_apps(id) ON DELETE CASCADE, recipient TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)",
+			"CREATE TABLE IF NOT EXISTS external_tickets (ticket_hash TEXT PRIMARY KEY, app_id INTEGER NOT NULL REFERENCES external_apps(id) ON DELETE CASCADE, recipient TEXT NOT NULL, device_id TEXT NOT NULL, challenge TEXT NOT NULL, expires_at TEXT NOT NULL)",
+			"CREATE TABLE IF NOT EXISTS external_sessions (id INTEGER PRIMARY KEY, app_id INTEGER NOT NULL REFERENCES external_apps(id) ON DELETE CASCADE, recipient TEXT NOT NULL, device_id TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, refresh_hash TEXT NOT NULL UNIQUE, refresh_expires_at TEXT NOT NULL, revoked_at TEXT, created_at TEXT NOT NULL, last_seen TEXT NOT NULL)",
 			"CREATE TABLE IF NOT EXISTS external_read_states (app_id INTEGER NOT NULL REFERENCES external_apps(id) ON DELETE CASCADE, recipient TEXT NOT NULL, message_id INTEGER NOT NULL REFERENCES external_messages(id) ON DELETE CASCADE, read_at TEXT NOT NULL, PRIMARY KEY(app_id,recipient,message_id))",
 			"CREATE TABLE IF NOT EXISTS external_webpush (id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES external_sessions(id) ON DELETE CASCADE, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT NOT NULL)",
 			"CREATE INDEX IF NOT EXISTS external_webpush_session_idx ON external_webpush(session_id)",
+			"CREATE INDEX IF NOT EXISTS external_sessions_device_idx ON external_sessions(app_id,recipient,device_id)",
+			"CREATE TABLE IF NOT EXISTS external_used_refresh (refresh_hash TEXT PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES external_sessions(id) ON DELETE CASCADE, retry_hash TEXT NOT NULL, reply_encrypted TEXT NOT NULL, used_at TEXT NOT NULL)",
 			"CREATE TABLE IF NOT EXISTS external_publication_windows (app_id INTEGER PRIMARY KEY REFERENCES external_apps(id) ON DELETE CASCADE, minute INTEGER NOT NULL, accepted INTEGER NOT NULL)",
 			"PRAGMA user_version=5",
 		}

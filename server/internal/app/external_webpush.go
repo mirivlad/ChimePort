@@ -45,12 +45,41 @@ func (a *App) externalWebPushSubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	var oldID, oldAppID int64
-	var oldRecipient string
-	err = tx.QueryRow("SELECT w.id,s.app_id,s.recipient FROM external_webpush w JOIN external_sessions s ON s.id=w.session_id WHERE w.endpoint=?", subscription.Endpoint).Scan(&oldID, &oldAppID, &oldRecipient)
+	var oldID, oldSessionID, oldAppID int64
+	var oldRecipient, oldDeviceID, oldOrigin, oldEncrypted string
+	var oldDisabled bool
+	var oldRevoked sql.NullString
+	err = tx.QueryRow(
+		"SELECT w.id,s.id,s.app_id,s.recipient,s.device_id,a.origin,a.token_encrypted,a.disabled,s.revoked_at FROM external_webpush w JOIN external_sessions s ON s.id=w.session_id JOIN external_apps a ON a.id=s.app_id WHERE w.endpoint=?",
+		subscription.Endpoint,
+	).Scan(&oldID, &oldSessionID, &oldAppID, &oldRecipient, &oldDeviceID, &oldOrigin, &oldEncrypted, &oldDisabled, &oldRevoked)
 	if err == nil && (oldAppID != s.app.id || oldRecipient != s.recipient) {
-		failure(w, 409, "subscription_in_use", "This endpoint is subscribed to another recipient")
-		return
+		// A push endpoint is unique to a browser profile, not to an app user.
+		// It can be re-used after switching TMS users only when the old grant
+		// is already revoked or the old owner explicitly denies it.
+		oldActive := false
+		if !oldDisabled && !oldRevoked.Valid {
+			secret, decryptErr := a.Store.decryptToken(oldEncrypted)
+			if decryptErr != nil {
+				a.err(w, decryptErr)
+				return
+			}
+			oldActive, err = a.validateTrustedDevice(r.Context(),
+				trustedApp{id: oldAppID, origin: oldOrigin, token: secret}, oldRecipient, oldDeviceID)
+			if err != nil {
+				failure(w, 503, "identity_unavailable", "Cannot verify the previous subscription owner")
+				return
+			}
+		}
+		if oldActive {
+			failure(w, 409, "subscription_in_use", "Endpoint still belongs to an active recipient")
+			return
+		}
+		if _, err = tx.Exec("DELETE FROM external_webpush WHERE id=?", oldID); err != nil {
+			a.err(w, err)
+			return
+		}
+		err = sql.ErrNoRows // Create a new binding after safely removing old one.
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		a.err(w, err)
@@ -117,19 +146,23 @@ func (a *App) queueExternalPush(appID int64, recipient string, messageID int64, 
 	}
 }
 func (a *App) deliverExternalPush(appID int64, recipient string, messageID int64, title, body, channel, priority, messageURL string) {
-	rows, err := a.Store.DB.Query("SELECT w.id,w.endpoint,w.p256dh,w.auth FROM external_webpush w JOIN external_sessions s ON s.id=w.session_id JOIN external_apps a ON a.id=s.app_id WHERE s.app_id=? AND s.recipient=? AND a.disabled=0 ORDER BY w.id LIMIT ?", appID, recipient, maxWebPushSubscriptions)
+	rows, err := a.Store.DB.Query("SELECT w.id,w.endpoint,w.p256dh,w.auth,s.id,s.device_id,a.origin,a.token_encrypted FROM external_webpush w JOIN external_sessions s ON s.id=w.session_id JOIN external_apps a ON a.id=s.app_id WHERE s.app_id=? AND s.recipient=? AND s.revoked_at IS NULL AND a.disabled=0 ORDER BY w.id LIMIT ?", appID, recipient, maxWebPushSubscriptions)
 	if err != nil {
 		slog.Error("external push query failed", "error", err)
 		return
 	}
 	type target struct {
-		ID  int64
-		sub webpush.Subscription
+		ID        int64
+		sessionID int64
+		deviceID  string
+		origin    string
+		encrypted string
+		sub       webpush.Subscription
 	}
 	targets := []target{}
 	for rows.Next() {
 		var t target
-		if err = rows.Scan(&t.ID, &t.sub.Endpoint, &t.sub.Keys.P256dh, &t.sub.Keys.Auth); err != nil {
+		if err = rows.Scan(&t.ID, &t.sub.Endpoint, &t.sub.Keys.P256dh, &t.sub.Keys.Auth, &t.sessionID, &t.deviceID, &t.origin, &t.encrypted); err != nil {
 			break
 		}
 		targets = append(targets, t)
@@ -148,6 +181,17 @@ func (a *App) deliverExternalPush(appID int64, recipient string, messageID int64
 		"url": messageURL,
 	})
 	for _, t := range targets {
+		secret, err := a.Store.decryptToken(t.encrypted)
+		if err != nil {
+			slog.Error("trusted app secret unavailable", "error", err)
+			continue
+		}
+		if !a.externalDeviceStatus(context.Background(), trustedSession{
+			id: t.sessionID, recipient: recipient, deviceID: t.deviceID,
+			app: trustedApp{id: appID, origin: t.origin, token: secret},
+		}) {
+			continue
+		}
 		if validateBrowserKeys(t.sub) != nil {
 			continue
 		}

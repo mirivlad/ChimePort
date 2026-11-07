@@ -10,10 +10,43 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 
 class ApiError(val code: Int, text: String) : IOException(text)
 
 object Api {
+    private val refreshLocks = ConcurrentHashMap<String, Any>()
+
+    /** Rotate at most once per connection, shared by foreground and background sync. */
+    fun ensureFresh(cache: Cache, account: ServerAccount): ServerAccount {
+        if (account.providerOrigin.isEmpty()) return account
+        val lock = refreshLocks.getOrPut(account.id) { Any() }
+        synchronized(lock) {
+            val current = cache.servers().firstOrNull { it.id == account.id }
+                ?: throw IOException("Подключение удалено.")
+            if (current.providerOrigin.isEmpty()) return current
+            val expiresSoon = current.accessExpiresAt == 0L ||
+                System.currentTimeMillis() + 120_000L >= current.accessExpiresAt
+            if (!expiresSoon) return current
+            if (!current.refreshToken.startsWith("cp_r_")) {
+                throw ApiError(401,"Для подключения TMS требуется повторный вход.")
+            }
+            val retryId = cache.refreshRetryId(current.id)
+            val response = call(current.origin, "/api/v1/external/refresh",
+                post = JSONObject().put("refresh_token",current.refreshToken)
+                    .put("retry_id",retryId))
+            val access = response.getString("access_token")
+            val refresh = response.getString("refresh_token")
+            val ttl = response.optLong("expires_in",0L)
+            if (!access.startsWith("cp_e_") || !refresh.startsWith("cp_r_") ||
+                ttl !in 1..3600) {
+                throw IOException("Сервер вернул некорректное продление авторизации.")
+            }
+            // Tokens are written in one transaction after both values validated.
+            cache.replaceSessionTokens(current.id,access,refresh,System.currentTimeMillis()+ttl*1000L)
+            return cache.servers().first { it.id == current.id }
+        }
+    }
     fun normalizeOrigin(raw: String): String {
         val input = raw.trim().trimEnd('/')
         if (input.isEmpty()) throw IllegalArgumentException("Введите адрес сервера.")
@@ -117,7 +150,8 @@ object Api {
         val login = call(issuer, "/api/notifications/mobile/login", post = JSONObject()
             .put("username", username)
             .put("password", password)
-            .put("code_challenge", challenge))
+            .put("code_challenge", challenge)
+            .put("device_name", "Android · ChimePort"))
         val returnedOrigin = normalizeOrigin(login.getString("chimeport_url"))
         if (returnedOrigin != delivery) throw IOException("TMS указал другой сервер уведомлений. Проверьте подключение.")
         val recipient = login.getString("recipient").toLongOrNull()
@@ -130,7 +164,13 @@ object Api {
             .put("code_verifier", verifier))
         val token = exchanged.getString("access_token")
         if (!token.startsWith("cp_e_")) throw IOException("Сервер уведомлений вернул некорректную сессию.")
-        return SessionInfo(token, login.getString("username"), recipient)
+        val refresh = exchanged.getString("refresh_token")
+        val ttl = exchanged.optLong("expires_in",0)
+        if (!refresh.startsWith("cp_r_") || ttl !in 1..3600) {
+            throw IOException("Сервер уведомлений не поддерживает автоматическое продление.")
+        }
+        return SessionInfo(token, login.getString("username"), recipient,refresh,
+            System.currentTimeMillis()+ttl*1000L)
     }
 
     fun login(origin: String, username: String, password: String): SessionInfo {

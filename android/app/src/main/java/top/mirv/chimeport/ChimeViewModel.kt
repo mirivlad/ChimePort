@@ -150,8 +150,9 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
             }
             setLiveStatus(id, if (failures == 0) LiveStatus.CONNECTING else LiveStatus.RECONNECTING)
             try {
+                val ready = withContext(Dispatchers.IO) { Api.ensureFresh(cache,account) }
                 eventStream.listen(
-                    account,
+                    ready,
                     onConnected = {
                         failures = 0
                         // Run one silent sync before interpreting a live event.
@@ -396,10 +397,10 @@ class ChimeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 withContext(Dispatchers.IO) {
                     if (shouldRead) {
-                        Api.read(account, notice.id)
+                        Api.read(Api.ensureFresh(cache,account), notice.id)
                         cache.markRead(notice.serverId, notice.id)
                     } else {
-                        Api.unread(account, notice.id)
+                        Api.unread(Api.ensureFresh(cache,account), notice.id)
                         cache.markUnread(notice.serverId, notice.id)
                     }
                 }

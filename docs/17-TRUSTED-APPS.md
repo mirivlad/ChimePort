@@ -1,23 +1,28 @@
-# Trusted Applications (schema 5)
+# Trusted Applications — ChimePort v0.1.5
 
-ChimePort теперь может доставлять персональные уведомления от внешних приложений, **не создавая пользовательские аккаунты ChimePort**. Приёмником служит неизменная пара \`(external_app_id, recipient)\`; пароль и даже имя пользователя внешнего приложения ChimePort не получает.
+Доверенное приложение доставляет события персональным получателям без создания для них аккаунтов ChimePort. Пара (app_id, recipient) изолирует историю, push-подписки и чтение.
 
-## Основной протокол
+## Административный API
 
-Администратор ChimePort создаёт \`POST /api/v1/admin/external-apps\` с JSON \`{"slug":"tms","origin":"https://tasks.example.org"}\`. Требуется обычная администраторская сессия ChimePort. В ответ возвращаются metadata и единственный секрет \`cp_a_...\`. \`GET /api/v1/admin/external-apps\` показывает список без токенов. \`PATCH /api/v1/admin/external-apps/{id}\` с \`{"disabled":true}\` немедленно прекращает работу приложения.
+- POST /api/v1/admin/external-apps: создать приложение по slug + origin HTTPS. Секрет cp_a_ показывается один раз.
+- GET /api/v1/admin/external-apps: список без секретов.
+- PATCH /api/v1/admin/external-apps/{id}: выключение приложения с немедленной блокировкой доступа.
+- POST /api/v1/external/messages: отправка с Authorization: Bearer cp_a_ и JSON полями recipient, title, body, priority, url. Idempotency-Key устраняет повторы, ссылка обязана принадлежать зарегистрированному origin.
 
-Приложение публикует сообщения через \`POST /api/v1/external/messages\` c \`Authorization: Bearer cp_a_...\` и JSON \`{"recipient":"42","title":"Новая задача","body":"...","priority":"normal","url":"https://tasks.example.org/tasks/42"}\`. \`recipient\` — стабильный непрозрачный идентификатор приложения; ссылка должна принадлежать заранее зарегистрированному HTTPS origin. Для повторов используйте \`Idempotency-Key\`. Записи хранятся в SQLite и ограничены по скорости.
+## Вход и устройства
 
-Для выпуска доступа устройству **только авторизованный сервер приложения** вызывает \`POST /api/v1/external/tickets\` с \`{"recipient":"42","code_challenge":"<base64url SHA256 of verifier>"}\`. ChimePort возвращает одноразовый \`cp_k_\` пропуск на 90 секунд. Устройство получает его через уже подтверждённый вход в приложение и вызывает \`POST /api/v1/external/exchange\` с \`{"ticket":"cp_k_...","code_verifier":"<verifier>"}\`. Результат — \`cp_e_\` сессия конкретного внешнего получателя на 7 суток.
+Сервер доверенного приложения проверяет личность пользователя и вызывает POST /api/v1/external/tickets (recipient, device_id, code_challenge PKCE S256). Билет действует 90 секунд. Клиент обменивает ticket + code_verifier через POST /api/v1/external/exchange и получает access token на 15 минут плюс refresh token со скользящим сроком 90 дней.
 
-Сессия поддерживает \`GET /api/v1/external/info\`, \`GET /api/v1/external/messages?after=<cursor>\`, \`POST/DELETE /api/v1/external/messages/{id}/read\`, \`GET /api/v1/external/events\` (SSE), \`POST /api/v1/external/logout\`, \`GET /api/v1/external/webpush/vapid-public-key\`, \`POST/DELETE /api/v1/external/webpush/subscriptions\`. VAPID public key также доступен по служебному токену приложения, но подписку может создать только scoped-сессия конкретного получателя.
+Для продления POST /api/v1/external/refresh принимает refresh_token и случайный retry_id. Ротация атомарна, утраченный ответ можно получить повтором с тем же retry_id; повтор использованного токена с другим retry_id отзывает устройство. Клиенты не должны отправлять cp_a_ в браузер или телефон.
 
-**Безопасность:** обычные ChimePort пользователи и внешние получатели изолированы на уровне запросов SQL и аутентификации. Один внешний получатель не видит сообщения или курсор другого. Подписка Web Push не может быть перепривязана к чужому получателю. Секрет \`cp_a_\` нельзя передавать Android или браузеру. Не доверяйте URL как идентификатору сервера без зарегистрированного приложения.
+По access token разрешены /api/v1/external/info, /messages, /events (SSE), /messages/{id}/read и /logout. Для браузеров доступны /webpush/vapid-public-key и /webpush/subscriptions. Административный клиент TMS может удалить конкретное устройство через /external/devices/revoke либо все сессии пользователя через /external/recipients/revoke.
 
-## Совместимость и эксплуатация
+## Отзыв, браузерные подписки и безопасность
 
-Миграция SQLite 4 → 5 не изменяет обычные аккаунты/каналы/историю и поддерживается резервным копированием (supported schema = 5). Очистка внешней истории — \`CHIMEPORT_RETENTION_DAYS\`, по умолчанию 30 суток. При обновлении обязательно выполнить резервную копию SQLite вместе с ключом \`token-key\`.
+TMS — источник истины о том, кому разрешено пользоваться устройством. ChimePort осуществляет HTTPS-проверку device_id через TMS перед чтением, ротацией, SSE и доставкой Web Push. Невозможность связаться с TMS закрывает доступ временно; явный отказ отзывает сессию и её push-подписки.
 
-**Текущие ограничения:** нет управляемой ротации токена доверенного приложения и немедленного индивидуального отзыва scoped-сессий при смене пароля во внешнем TMS; сессия истечёт максимум через 7 суток или отключается вместе с приложением. Android и Web Push являются best effort. Не используйте их как единственный аварийный канал связи.
+Привязка push-подписки к сеансу и разрешению браузера осуществляется в TMS. Выход из TMS или смена пользователя лишает прошлую подписку доступа. Чужой recipient или приложение не получают историю либо права другого пользователя.
 
-Сквозная инструкция для TMS: [TMS docs/CHIMEPORT_BRIDGE.md](https://github.com/mirivlad/tms/blob/feat/chimeport-external-bridge/docs/CHIMEPORT_BRIDGE.md).
+SQLite схема мигрирует с 4 на 5; сделайте проверенную резервную копию базы и token-key до обновления. Переход назад к v0.1.4 без восстановления копии не поддерживается. Существующие личные каналы, источники и интеграции HA/MirvMon не изменяются.
+
+Ограничение: нет безопасной ротации самого cp_a_ без перевыдачи приложения; не выдавайте его пользователям. Web Push и Android-зависимая доставка best effort, не гарантия при отсутствии сети.

@@ -21,7 +21,7 @@ func redeemTrustedForTest(t *testing.T, h *harness, appName, recipient string) s
 	digest := sha256.Sum256([]byte(verifier))
 	challenge := base64.RawURLEncoding.EncodeToString(digest[:])
 	status, data := h.req(t, "POST", "/api/v1/external/tickets", appName,
-		map[string]string{"recipient": recipient, "code_challenge": challenge}, nil)
+		map[string]string{"recipient": recipient, "device_id": fmt.Sprintf("%032x", len(recipient)+len(appName)), "code_challenge": challenge}, nil)
 	mustStatus(t, status, 201, data)
 	ticket := data["ticket"].(string)
 	status, data = h.req(t, "POST", "/api/v1/external/exchange", "",

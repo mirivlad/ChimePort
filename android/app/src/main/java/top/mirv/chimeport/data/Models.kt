@@ -11,7 +11,9 @@ data class ServerAccount(
     val cursor: String,
     val lastSync: Long,
     // Empty for direct ChimePort accounts; TMS origin for delegated accounts.
-    val providerOrigin: String = ""
+    val providerOrigin: String = "",
+    val refreshToken: String = "",
+    val accessExpiresAt: Long = 0
 )
 
 data class ChannelInfo(
@@ -46,7 +48,11 @@ data class InstanceInfo(
     val providerOrigin: String = "",
     val serviceOrigin: String = ""
 )
-data class SessionInfo(val token: String, val username: String, val userId: Long)
+data class SessionInfo(
+    val token: String, val username: String, val userId: Long,
+    val refreshToken: String = "",
+    val accessExpiresAt: Long = 0
+)
 data class Page(val items: List<Notice>, val nextCursor: String, val hasMore: Boolean)
 
 enum class Tab { INBOX, SEARCH, SERVERS, SETTINGS }

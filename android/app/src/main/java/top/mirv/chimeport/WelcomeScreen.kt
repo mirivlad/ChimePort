@@ -27,7 +27,7 @@ import top.mirv.chimeport.data.AppState
 fun WelcomeScreen(state: AppState, model: ChimeViewModel) {
     var address by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var label by rememberSaveable { mutableStateOf("Дом") }
     val canCancel = state.servers.isNotEmpty()
 
@@ -159,7 +159,10 @@ fun WelcomeScreen(state: AppState, model: ChimeViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Button(
-                        onClick = { model.connect(username, password, label) },
+                        onClick = {
+                            model.connect(username, password, label)
+                            password = ""
+                        },
                         enabled = !state.busy && username.isNotBlank() && password.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
