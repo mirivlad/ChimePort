@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import top.mirv.chimeport.data.Api
 import top.mirv.chimeport.data.ApiError
 import top.mirv.chimeport.data.Cache
 import top.mirv.chimeport.data.EventStream
