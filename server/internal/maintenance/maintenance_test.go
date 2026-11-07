@@ -34,7 +34,7 @@ func TestConsistentOnlineBackupAndRestoreWithoutLosingIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if backup.InstanceID != store.InstanceID || backup.SchemaVersion != 4 {
+	if backup.InstanceID != store.InstanceID || backup.SchemaVersion != 5 {
 		t.Fatalf("unexpected backup manifest: %+v", backup)
 	}
 	_, err = store.DB.Exec("UPDATE instance SET value='after' WHERE key='sample'")

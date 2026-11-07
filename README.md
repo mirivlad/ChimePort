@@ -9,7 +9,11 @@
 [![Server CI](https://github.com/mirivlad/ChimePort/actions/workflows/server-ci.yml/badge.svg)](https://github.com/mirivlad/ChimePort/actions/workflows/server-ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 
-**Версии:** сервер и веб-панель **v0.1.4** · последний Android APK опубликован вместе с **v0.1.1** (внутренняя версия приложения `0.8.1-alpha`). [Скачать релизы](https://github.com/mirivlad/ChimePort/releases).
+**Версии:** сервер и веб-панель **v0.1.5** · Android APK выпускается отдельно (внутренняя версия `0.9.0-alpha`). [Скачать релизы](https://github.com/mirivlad/ChimePort/releases).
+
+## Trusted Applications
+
+ChimePort поддерживает доверенные многопользовательские приложения: они отправляют адресные уведомления по собственным стабильным ID, а пользователь заходит только в своё приложение. Отдельная регистрация в ChimePort не требуется. [Протокол и безопасность](docs/17-TRUSTED-APPS.md).
 
 ## Возможности
 
@@ -59,7 +63,7 @@ Home Assistant / MirvMon / Zabbix / скрипты
 | Stack name | `chimeport` |
 | Environment variable | `CHIMEPORT_PUBLIC_URL=https://notify.example.org` |
 
-Домен замените своим. Compose по умолчанию использует образ `ghcr.io/mirivlad/chimeport:v0.1.4` и постоянный том данных. Приложение слушает только `127.0.0.1:8080` на хосте; снаружи обеспечьте HTTPS, например Caddy или Nginx.
+Домен замените своим. Compose по умолчанию использует образ `ghcr.io/mirivlad/chimeport:v0.1.5` и постоянный том данных. Приложение слушает только `127.0.0.1:8080` на хосте; снаружи обеспечьте HTTPS, например Caddy или Nginx.
 
 ### Docker Compose без Portainer
 
@@ -103,7 +107,7 @@ APK загружается из [релиза v0.1.1](https://github.com/mirivla
 
 ## Обновления и резервные копии
 
-Для Portainer предпочтительнее фиксировать `CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.4` (или неизменяемый digest/`sha-...`), а не постоянно движущийся `:main`.
+Для Portainer предпочтительнее фиксировать `CHIMEPORT_IMAGE=ghcr.io/mirivlad/chimeport:v0.1.5` (или неизменяемый digest/`sha-...`), а не постоянно движущийся `:main`.
 
 Перед redeploy создайте и **проверьте** архив из SQLite + `token-key`. Не удаляйте постоянный том данных при обновлении; при несовместимой схеме откатывайте код **вместе с соответствующим бэкапом**, не запускайте старую версию поверх новой БД. [Резервирование, проверка, восстановление и откат](docs/13-BACKUP-RESTORE.md).
 

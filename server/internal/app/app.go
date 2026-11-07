@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
@@ -34,6 +35,8 @@ type App struct {
 	limiter              loginLimiter
 	mu                   sync.Mutex
 	listeners            map[int64]map[chan int64]struct{}
+	externalListeners    map[string]map[chan int64]struct{}
+	externalValidate     func(context.Context, trustedApp, string, string) (bool, error)
 }
 
 func New(store *Store, publicURL string) (*App, error) {
@@ -55,7 +58,7 @@ func New(store *Store, publicURL string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Store: store, PublicURL: publicURL, PublishRatePerMinute: 120, secure: u.Scheme == "https", cursorSecret: secret, listeners: map[int64]map[chan int64]struct{}{}}
+	a := &App{Store: store, PublicURL: publicURL, PublishRatePerMinute: 120, secure: u.Scheme == "https", cursorSecret: secret, listeners: map[int64]map[chan int64]struct{}{}, externalListeners: map[string]map[chan int64]struct{}{}}
 	if err := a.initWebPush(); err != nil {
 		return nil, err
 	}
@@ -99,6 +102,24 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/v1/sources/{id}/tokens/{token_id}", a.updateTokenPermissions)
 	mux.HandleFunc("GET /api/v1/sources/{id}/tokens/{token_id}/secret", a.viewToken)
 	mux.HandleFunc("DELETE /api/v1/sources/{id}/tokens/{token_id}", a.revokeToken)
+	mux.HandleFunc("GET /api/v1/admin/external-apps", a.listExternalApps)
+	mux.HandleFunc("POST /api/v1/admin/external-apps", a.createExternalApp)
+	mux.HandleFunc("PATCH /api/v1/admin/external-apps/{id}", a.changeExternalApp)
+	mux.HandleFunc("POST /api/v1/external/messages", a.publishExternal)
+	mux.HandleFunc("GET /api/v1/external/messages", a.historyExternal)
+	mux.HandleFunc("GET /api/v1/external/events", a.externalEvents)
+	mux.HandleFunc("POST /api/v1/external/messages/{id}/read", a.markExternalRead)
+	mux.HandleFunc("DELETE /api/v1/external/messages/{id}/read", a.markExternalUnread)
+	mux.HandleFunc("POST /api/v1/external/tickets", a.createExternalTicket)
+	mux.HandleFunc("POST /api/v1/external/devices/revoke", a.externalRevokeDevice)
+	mux.HandleFunc("POST /api/v1/external/recipients/revoke", a.externalRevokeRecipient)
+	mux.HandleFunc("POST /api/v1/external/exchange", a.exchangeExternalTicket)
+	mux.HandleFunc("POST /api/v1/external/refresh", a.externalRefresh)
+	mux.HandleFunc("POST /api/v1/external/logout", a.externalLogout)
+	mux.HandleFunc("GET /api/v1/external/info", a.externalInfo)
+	mux.HandleFunc("GET /api/v1/external/webpush/vapid-public-key", a.externalVapidPublic)
+	mux.HandleFunc("POST /api/v1/external/webpush/subscriptions", a.externalWebPushSubscribe)
+	mux.HandleFunc("DELETE /api/v1/external/webpush/subscriptions", a.externalWebPushUnsubscribe)
 	mux.HandleFunc("POST /api/v1/messages", a.publish)
 	mux.HandleFunc("GET /api/v1/messages", a.history)
 	mux.HandleFunc("POST /api/v1/messages/{id}/read", a.markRead)

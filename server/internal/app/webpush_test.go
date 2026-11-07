@@ -96,7 +96,7 @@ func TestWebPushMigrationFromV3AndStableVAPIDKeys(t *testing.T) {
 	}
 	defer reopened.DB.Close()
 	var version int
-	if err := reopened.DB.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 4 {
+	if err := reopened.DB.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 5 {
 		t.Fatalf("migration to schema 4: %d %v", version, err)
 	}
 	second, err := New(reopened, "http://localhost:8080")
@@ -249,7 +249,7 @@ func TestWebPushBackupRestoresVAPIDIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.SchemaVersion != 4 {
+	if manifest.SchemaVersion != 5 {
 		t.Fatalf("wrong backup schema: %d", manifest.SchemaVersion)
 	}
 	if _, err = maintenance.Verify(archive); err != nil {

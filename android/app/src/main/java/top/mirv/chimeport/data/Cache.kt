@@ -10,7 +10,7 @@ import java.util.UUID
  * App-private offline cache. The primary key is local server-connection ID + message ID:
  * equal message IDs on different ChimePort instances cannot collide.
  */
-class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", null, 1) {
+class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", null, 4) {
     private val settings = context.getSharedPreferences("chimeport_preferences", Context.MODE_PRIVATE)
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -24,6 +24,10 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
               label TEXT NOT NULL, username TEXT NOT NULL, user_id INTEGER NOT NULL,
               encrypted_token TEXT NOT NULL, cursor TEXT NOT NULL DEFAULT '',
               last_sync INTEGER NOT NULL DEFAULT 0,
+              provider_origin TEXT NOT NULL DEFAULT '',
+              encrypted_refresh_token TEXT NOT NULL DEFAULT '',
+              access_expires_at INTEGER NOT NULL DEFAULT 0,
+              refresh_retry_encrypted TEXT NOT NULL DEFAULT '',
               UNIQUE(origin, instance_id, user_id)
             )
         """.trimIndent())
@@ -48,7 +52,16 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Version 1: future schema migrations will preserve data.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE accounts ADD COLUMN provider_origin TEXT NOT NULL DEFAULT ''")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE accounts ADD COLUMN encrypted_refresh_token TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE accounts ADD COLUMN access_expires_at INTEGER NOT NULL DEFAULT 0")
+        }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE accounts ADD COLUMN refresh_retry_encrypted TEXT NOT NULL DEFAULT ''")
+        }
     }
 
     fun theme(): ThemeChoice = runCatching {
@@ -63,14 +76,17 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
     fun servers(): List<ServerAccount> {
         val result = mutableListOf<ServerAccount>()
         readableDatabase.rawQuery(
-            "SELECT id,origin,instance_id,label,username,user_id,encrypted_token,cursor,last_sync FROM accounts ORDER BY label COLLATE NOCASE",
+            "SELECT id,origin,instance_id,label,username,user_id,encrypted_token,cursor,last_sync,provider_origin,encrypted_refresh_token,access_expires_at FROM accounts ORDER BY label COLLATE NOCASE",
             null
         ).use { c ->
             while (c.moveToNext()) {
                 val token = runCatching { Crypto.decrypt(c.getString(6)) }.getOrDefault("")
+                val refresh = c.getString(10).takeIf { it.isNotEmpty() }
+                    ?.let { runCatching { Crypto.decrypt(it) }.getOrDefault("") } ?: ""
                 result += ServerAccount(
                     c.getString(0), c.getString(1), c.getString(2), c.getString(3),
-                    c.getString(4), c.getLong(5), token, c.getString(7), c.getLong(8)
+                    c.getString(4), c.getLong(5), token, c.getString(7), c.getLong(8),
+                    c.getString(9), refresh, c.getLong(11)
                 )
             }
         }
@@ -78,9 +94,10 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
     }
 
     @Synchronized
-    fun upsertAccount(origin: String, instance: InstanceInfo, session: SessionInfo, label: String): ServerAccount {
+    fun upsertAccount(origin: String, instance: InstanceInfo, session: SessionInfo, label: String, providerOrigin: String = ""): ServerAccount {
         val existing = servers().firstOrNull {
-            it.origin == origin && it.instanceId == instance.id && it.userId == session.userId
+            it.origin == origin && it.instanceId == instance.id && it.userId == session.userId &&
+                it.providerOrigin == providerOrigin
         }
         val id = existing?.id ?: UUID.randomUUID().toString()
         val values = ContentValues().apply {
@@ -93,10 +110,49 @@ class Cache(context: Context) : SQLiteOpenHelper(context, "chimeport.sqlite", nu
             put("encrypted_token", Crypto.encrypt(session.token))
             put("cursor", existing?.cursor ?: "")
             put("last_sync", existing?.lastSync ?: 0L)
+            put("provider_origin", providerOrigin)
+            put("encrypted_refresh_token",
+                if (session.refreshToken.isNotEmpty()) Crypto.encrypt(session.refreshToken) else "")
+            put("access_expires_at", session.accessExpiresAt)
+            put("refresh_retry_encrypted", "")
         }
         if (existing == null) writableDatabase.insertOrThrow("accounts", null, values)
         else writableDatabase.update("accounts", values, "id=?", arrayOf(id))
         return servers().first { it.id == id }
+    }
+
+    /** Stable retry secret survives connection loss between server rotation and DB commit. */
+    @Synchronized
+    fun refreshRetryId(id: String): String {
+        val db = writableDatabase
+        val stored = db.rawQuery("SELECT refresh_retry_encrypted FROM accounts WHERE id=?",arrayOf(id))
+            .use { c -> if (c.moveToFirst()) c.getString(0) else throw IllegalStateException("Missing account") }
+        if (stored.isNotEmpty()) return Crypto.decrypt(stored)
+        val retry = UUID.randomUUID().toString().replace("-","")
+        val values = ContentValues().apply {put("refresh_retry_encrypted",Crypto.encrypt(retry))}
+        if (db.update("accounts",values,"id=?",arrayOf(id))!=1) {
+            throw IllegalStateException("Missing account")
+        }
+        return retry
+    }
+
+    /** Atomic replacement prevents mixing an old access token with a new refresh secret. */
+    @Synchronized
+    fun replaceSessionTokens(id: String, access: String, refresh: String, expiresAt: Long) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val values = ContentValues().apply {
+                put("encrypted_token", Crypto.encrypt(access))
+                put("encrypted_refresh_token", Crypto.encrypt(refresh))
+                put("access_expires_at", expiresAt)
+                put("refresh_retry_encrypted","")
+            }
+            if (db.update("accounts",values,"id=?",arrayOf(id)) != 1) {
+                throw IllegalStateException("Account was removed during token rotation")
+            }
+            db.setTransactionSuccessful()
+        } finally {db.endTransaction()}
     }
 
     @Synchronized
