@@ -8,6 +8,7 @@
 
 [![Server CI](https://github.com/mirivlad/ChimePort/actions/workflows/server-ci.yml/badge.svg)](https://github.com/mirivlad/ChimePort/actions/workflows/server-ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+[![Угостить разработчика кофе / Buy me a coffee](https://img.shields.io/badge/Support-Buy%20me%20a%20coffee-7055a5?style=flat-square&logo=buymeacoffee&logoColor=white)](https://mirv.top/support/)
 
 **Версии:** сервер и веб-панель **v0.1.6** · Android APK выпускается отдельно (внутренняя версия `0.9.0-alpha`). [Скачать релизы](https://github.com/mirivlad/ChimePort/releases).
 
@@ -133,4 +134,4 @@ ChimePort — независимый проект; обязательного ц
 
 Если проект оказался полезен, вы можете добровольно поддержать его развитие. / If this project is useful to you, you can voluntarily support its development.
 
-[![Угостить разработчика кофе / Buy me a coffee](https://img.shields.io/badge/Support-Buy%20me%20a%20coffee-7055a5?style=flat-square&logo=buymeacoffee&logoColor=white)](https://mirv.top/support/)
+[Страница поддержки / Support page](https://mirv.top/support/)
